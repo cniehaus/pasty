@@ -6,8 +6,16 @@
 //! Pasta has no main window. It lives in the menu bar (macOS) or the
 //! notification area of the taskbar (Windows).
 
+mod capture;
+mod editor;
+mod overlay;
+mod store;
+
+use std::borrow::Cow;
+
 use tauri::{
-    AppHandle, RunEvent,
+    AppHandle, Manager, RunEvent,
+    http::{Response, StatusCode, header},
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
@@ -26,10 +34,27 @@ fn capture_shortcut() -> Shortcut {
 }
 
 /// Triggered by the global shortcut or the tray menu.
+fn start_capture(app: &AppHandle) {
+    overlay::start(app);
+}
+
+/// Serves images from the [`store::ImageStore`] to the webviews.
 ///
-/// Placeholder: will freeze the screen and open the selection overlay.
-fn start_capture(_app: &AppHandle) {
-    println!("[pasta] capture triggered");
+/// URLs look like `pasta://localhost/frozen.png` (macOS) or
+/// `http://pasta.localhost/frozen.png` (Windows); the frontend builds them
+/// with `convertFileSrc(path, "pasta")`.
+fn serve_image(app: &AppHandle, path: &str) -> Response<Cow<'static, [u8]>> {
+    let path = path.trim_start_matches('/');
+    let builder = Response::builder().header(header::CACHE_CONTROL, "no-store");
+    let response = match app.state::<store::ImageStore>().get(path) {
+        Some(png) => builder
+            .header(header::CONTENT_TYPE, "image/png")
+            .body(Cow::Owned(png.to_vec())),
+        None => builder
+            .status(StatusCode::NOT_FOUND)
+            .body(Cow::Borrowed(&[][..])),
+    };
+    response.expect("valid static response")
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -66,6 +91,16 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .manage(store::ImageStore::default())
+        .manage(overlay::OverlayState::default())
+        .register_uri_scheme_protocol("pasta", |ctx, request| {
+            serve_image(ctx.app_handle(), request.uri().path())
+        })
+        .invoke_handler(tauri::generate_handler![
+            overlay::overlay_ready,
+            overlay::cancel_selection,
+            overlay::finish_selection,
+        ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {

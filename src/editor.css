@@ -1,0 +1,23 @@
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: Canvas;
+}
+
+.stage {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+
+#capture {
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.25);
+}
