@@ -46,7 +46,11 @@ fn start_capture(app: &AppHandle) {
 /// with `convertFileSrc(path, "pasta")`.
 fn serve_image(app: &AppHandle, path: &str) -> Response<Cow<'static, [u8]>> {
     let path = path.trim_start_matches('/');
-    let builder = Response::builder().header(header::CACHE_CONTROL, "no-store");
+    let builder = Response::builder()
+        .header(header::CACHE_CONTROL, "no-store")
+        // The page origin differs from pasta://; without CORS the editor
+        // canvas becomes tainted and cannot be exported.
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
     let response = match app.state::<store::ImageStore>().get(path) {
         Some(png) => builder
             .header(header::CONTENT_TYPE, "image/png")

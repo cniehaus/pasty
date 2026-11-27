@@ -365,6 +365,7 @@ window.addEventListener("keydown", (e) => {
 async function init() {
   const id = getCurrentWindow().label.replace(/^editor-/, "");
   const image = new Image();
+  image.crossOrigin = "anonymous"; // keeps the canvas exportable
   image.src = storedImageUrl(`capture-${id}.png`);
   await image.decode();
 
