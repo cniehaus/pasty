@@ -87,8 +87,9 @@ function select(id: string | null) {
 function setTool(next: Tool) {
   tool = next;
   stageEl.className = `tool-${tool}`;
+  canvas.tool = tool;
   updateDraftFactory();
-  updateToolbar();
+  refresh();
 }
 
 /** Applies a style change to the defaults and to the selected annotation. */
@@ -595,6 +596,7 @@ async function init() {
   window.addEventListener("resize", () => {
     finishEditing();
     layout();
+    refresh(); // hit areas depend on the display scale
   });
 }
 

@@ -34,7 +34,7 @@ const BLUR_RADIUS = 6;
 /** Minimum drag distance (screen pixels) that counts as drawing. */
 const MIN_DRAG = 6;
 const HANDLE_RADIUS = 6;
-/** Hit tolerance around thin strokes, in logical points. */
+/** Hit tolerance around thin strokes, in screen pixels. */
 const HIT_TOLERANCE = 14;
 
 export interface Point {
@@ -65,6 +65,12 @@ export class AnnotationCanvas {
   readonly stage: Konva.Stage;
   /** When set, dragging on the background draws a new annotation. */
   draftFactory: DraftFactory | null = null;
+  /**
+   * Active tool. With "select", frames and spotlights can be grabbed
+   * anywhere inside; with other tools only at the outline, so the inside
+   * stays free for placing markers or text.
+   */
+  tool = "select";
 
   private readonly blurNode: Konva.Image;
   /** Redactions sit directly on the image, below everything else. */
@@ -160,6 +166,8 @@ export class AnnotationCanvas {
   render(annotations: readonly Annotation[], selectedId: string | null, hiddenId?: string): void {
     this.transformer.nodes([]);
     this.uiLayer.find(".handle").forEach((n) => n.destroy());
+    // Nodes are recreated, so a pending mouseleave would never fire.
+    this.stage.container().style.cursor = "";
     this.redactLayer.destroyChildren();
     this.annotationLayer.destroyChildren();
     this.spotlights = [];
@@ -178,6 +186,9 @@ export class AnnotationCanvas {
       if (a.id === hiddenId) continue;
       const node = this.createNode(a);
       node.draggable(true);
+      // Show where things can be grabbed.
+      node.on("mouseenter", () => (this.stage.container().style.cursor = "move"));
+      node.on("mouseleave", () => (this.stage.container().style.cursor = ""));
       const origin = { x: node.x(), y: node.y() };
       node.on("dragend", () => this.callbacks.onTranslate(a.id, node.x() - origin.x, node.y() - origin.y));
       (a.kind === "redact" ? this.redactLayer : this.annotationLayer).add(node);
@@ -263,7 +274,7 @@ export class AnnotationCanvas {
             stroke: m.color,
             strokeWidth: width,
             lineCap: "round",
-            hitStrokeWidth: Math.max(width, HIT_TOLERANCE * this.pixelRatio),
+            hitStrokeWidth: Math.max(width, this.hitTolerance()),
           }),
           arrowHead(tip.x, tip.y, angle, "filled", m.color, width),
         );
@@ -345,7 +356,7 @@ export class AnnotationCanvas {
         stroke: a.color,
         strokeWidth: width,
         lineCap: "round",
-        hitStrokeWidth: Math.max(width, HIT_TOLERANCE * this.pixelRatio),
+        hitStrokeWidth: Math.max(width, this.hitTolerance()),
       }),
     );
     if (atEnd) group.add(arrowHead(a.x2, a.y2, angle, a.headStyle, a.color, width));
@@ -380,16 +391,25 @@ export class AnnotationCanvas {
     );
   }
 
+  /** Hit tolerance for thin strokes in image pixels (constant on screen). */
+  private hitTolerance(): number {
+    return HIT_TOLERANCE / this.scale;
+  }
+
+  /** Invisible fill that makes the whole inside clickable, or none. */
+  private areaHit(kind: "frame" | "spotlight"): Konva.ShapeConfig {
+    const whole = this.tool === "select" || this.tool === kind;
+    return whole ? { fill: "rgba(0, 0, 0, 0)" } : { fillEnabled: false };
+  }
+
   private drawFrame(group: Konva.Group, f: Frame): void {
     group.position({ x: f.x, y: f.y });
     const width = strokeWidth(f.size, this.pixelRatio);
-    // Only the outline is clickable, so markers can be placed inside.
     const common = {
       stroke: f.color,
       strokeWidth: width,
-      fillEnabled: false,
-      strokeScaleEnabled: false,
-      hitStrokeWidth: Math.max(width, HIT_TOLERANCE * this.pixelRatio),
+      hitStrokeWidth: Math.max(width, this.hitTolerance()),
+      ...this.areaHit("frame"),
     };
     group.add(outlineShape(f.shape, f.width, f.height, { ...common, cornerRadius: width }));
   }
@@ -416,15 +436,13 @@ export class AnnotationCanvas {
 
   private drawSpotlight(group: Konva.Group, s: Spotlight): void {
     group.position({ x: s.x, y: s.y });
-    // Invisible outline as grab handle; the dimming shows the area. The
-    // inside stays clickable for other tools.
+    // Invisible shape as grab handle; the dimming shows the area.
     group.add(
       outlineShape(s.shape, s.width, s.height, {
         stroke: "rgba(0, 0, 0, 0)",
         strokeWidth: 1,
-        fillEnabled: false,
-        strokeScaleEnabled: false,
-        hitStrokeWidth: HIT_TOLERANCE * this.pixelRatio,
+        hitStrokeWidth: this.hitTolerance(),
+        ...this.areaHit("spotlight"),
       }),
     );
   }
