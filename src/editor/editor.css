@@ -183,7 +183,8 @@ button svg {
 #stage.tool-marker,
 #stage.tool-text,
 #stage.tool-arrow,
-#stage.tool-magnifier {
+#stage.tool-magnifier,
+#stage.tool-frame {
   cursor: crosshair;
 }
 

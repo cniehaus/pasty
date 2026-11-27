@@ -26,6 +26,9 @@
         <button class="tool" data-tool="arrow" title="Pfeil (A)" aria-label="Pfeil">
           <svg viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9" /></svg>
         </button>
+        <button class="tool" data-tool="frame" title="Rahmen (R)" aria-label="Rahmen">
+          <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" /></svg>
+        </button>
         <button class="tool" data-tool="magnifier" title="Lupe (L)" aria-label="Lupe">
           <svg viewBox="0 0 24 24">
             <circle cx="10.5" cy="10.5" r="6.5" />
@@ -36,7 +39,7 @@
 
       <div class="separator"></div>
 
-      <div class="group" id="colors" role="radiogroup" aria-label="Farbe" data-for="none marker text arrow"></div>
+      <div class="group" id="colors" role="radiogroup" aria-label="Farbe" data-for="none marker text arrow frame"></div>
 
       <div class="group segmented" role="radiogroup" aria-label="Größe">
         <button data-size="s" title="Klein">S</button>
@@ -73,6 +76,15 @@
         </button>
         <button data-head-style="dot" title="Punkt" aria-label="Punkt">
           <svg viewBox="0 0 24 24"><path d="M4 12h11" /><circle class="fill" cx="17" cy="12" r="3.5" /></svg>
+        </button>
+      </div>
+
+      <div class="group segmented" role="radiogroup" aria-label="Form" data-for="frame">
+        <button data-shape="rect" title="Rechteck" aria-label="Rechteck">
+          <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" /></svg>
+        </button>
+        <button data-shape="ellipse" title="Ellipse" aria-label="Ellipse">
+          <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6" /></svg>
         </button>
       </div>
 

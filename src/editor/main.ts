@@ -8,6 +8,7 @@ import { AnnotationCanvas, FONT_FAMILY, TEXT_LINE_HEIGHT, textPadding, type Poin
 import { History } from "./history";
 import {
   type Annotation,
+  type FrameShape,
   type HeadPosition,
   type HeadStyle,
   type Kind,
@@ -21,6 +22,7 @@ import {
   fontSize,
   newId,
   nextMarkerLabel,
+  spanRect,
   styleFor,
   translate,
 } from "./model";
@@ -84,14 +86,14 @@ function select(id: string | null) {
 function setTool(next: Tool) {
   tool = next;
   stageEl.className = `tool-${tool}`;
-  updateArrowTemplate();
+  updateDraftFactory();
   updateToolbar();
 }
 
 /** Applies a style change to the defaults and to the selected annotation. */
 function setStyle(change: Partial<Style>) {
   style = { ...style, ...change };
-  updateArrowTemplate();
+  updateDraftFactory();
 
   const a = selected();
   const relevant = a ? styleFor(a.kind, change) : {};
@@ -102,11 +104,51 @@ function setStyle(change: Partial<Style>) {
   }
 }
 
-function updateArrowTemplate() {
-  canvas.arrowTemplate =
-    tool === "arrow"
-      ? { color: style.color, size: style.size, heads: style.heads, headStyle: style.headStyle }
-      : null;
+/** What dragging on the background creates with the current tool. */
+function updateDraftFactory() {
+  const { color, size } = style;
+  switch (tool) {
+    case "arrow":
+      canvas.draftFactory = (s, e) => ({
+        kind: "arrow",
+        id: newId(),
+        x: s.x,
+        y: s.y,
+        x2: e.x,
+        y2: e.y,
+        color,
+        size,
+        heads: style.heads,
+        headStyle: style.headStyle,
+      });
+      break;
+    case "frame":
+      canvas.draftFactory = (s, e) => ({
+        kind: "frame",
+        id: newId(),
+        ...spanRect(s, e),
+        color,
+        size,
+        shape: style.shape,
+      });
+      break;
+    case "marker":
+      // Click: plain marker (onBackgroundClick). Drag: marker with pointer.
+      canvas.draftFactory = (s, e) => ({
+        kind: "marker",
+        id: newId(),
+        x: s.x,
+        y: s.y,
+        tx: e.x,
+        ty: e.y,
+        color,
+        size,
+        label: nextMarkerLabel(annotations()),
+      });
+      break;
+    default:
+      canvas.draftFactory = null;
+  }
 }
 
 /** Kind whose options the toolbar shows: the selection, else the tool. */
@@ -161,27 +203,13 @@ function onBackgroundClick(p: Point) {
   } else if (tool === "select") {
     select(null);
   }
-  // Arrow tool: arrows are created by dragging (onDrawArrow).
+  // Arrow and frame tools create by dragging (onDraw).
 }
 
-function onDrawArrow(start: Point, end: Point) {
-  const id = newId();
-  selectedId = id;
-  commit([
-    ...annotations(),
-    {
-      kind: "arrow",
-      id,
-      x: start.x,
-      y: start.y,
-      x2: end.x,
-      y2: end.y,
-      color: style.color,
-      size: style.size,
-      heads: style.heads,
-      headStyle: style.headStyle,
-    },
-  ]);
+function onDraw(annotation: Annotation) {
+  // Markers are placed in series; keep them unselected like plain clicks.
+  if (annotation.kind !== "marker") selectedId = annotation.id;
+  commit([...annotations(), annotation]);
 }
 
 function onTranslate(id: string, dx: number, dy: number) {
@@ -355,6 +383,9 @@ function buildToolbar() {
   document.querySelectorAll<HTMLButtonElement>("[data-head-style]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ headStyle: b.dataset.headStyle as HeadStyle })),
   );
+  document.querySelectorAll<HTMLButtonElement>("[data-shape]").forEach((b) =>
+    b.addEventListener("click", () => setStyle({ shape: b.dataset.shape as FrameShape })),
+  );
   document.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ zoom: Number(b.dataset.zoom) })),
   );
@@ -392,6 +423,7 @@ function updateToolbar() {
   check("[data-heads]", (el) => el.dataset.heads === style.heads);
   check("[data-head-style]", (el) => el.dataset.headStyle === style.headStyle);
   check("[data-zoom]", (el) => Number(el.dataset.zoom) === style.zoom);
+  check("[data-shape]", (el) => el.dataset.shape === style.shape);
   $<HTMLInputElement>("#boxed").checked = style.boxed;
   $<HTMLInputElement>("#blur-outside").checked = style.blurOutside;
 
@@ -463,6 +495,8 @@ window.addEventListener("keydown", (e) => {
     setTool("arrow");
   } else if (key === "l") {
     setTool("magnifier");
+  } else if (key === "r") {
+    setTool("frame");
   } else if (key === "enter" && selected()?.kind === "text") {
     onEditText(selectedId!);
   }
@@ -483,7 +517,7 @@ async function init() {
     onTranslate,
     onUpdate: update,
     onEditText,
-    onDrawArrow,
+    onDraw,
   });
 
   buildToolbar();

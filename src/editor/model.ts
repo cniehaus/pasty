@@ -3,6 +3,7 @@
 export type Size = "s" | "m" | "l";
 export type HeadPosition = "end" | "start" | "both" | "none";
 export type HeadStyle = "filled" | "open" | "dot";
+export type FrameShape = "rect" | "ellipse";
 
 /** Current tool settings; each annotation kind uses a subset. */
 export interface Style {
@@ -13,6 +14,7 @@ export interface Style {
   headStyle: HeadStyle;
   zoom: number;
   blurOutside: boolean;
+  shape: FrameShape;
 }
 
 interface Base {
@@ -23,10 +25,15 @@ interface Base {
   size: Size;
 }
 
-/** Numbered step marker; (x, y) is the circle centre. */
+/**
+ * Numbered step marker; (x, y) is the circle centre. With a pointer, a line
+ * runs from the circle to the tip (tx, ty).
+ */
 export interface Marker extends Base {
   kind: "marker";
   label: string;
+  tx?: number;
+  ty?: number;
 }
 
 /** Text note; (x, y) is the top-left corner. */
@@ -53,7 +60,15 @@ export interface Magnifier extends Base {
   blurOutside: boolean;
 }
 
-export type Annotation = Marker | TextNote | Arrow | Magnifier;
+/** Outline for circling something; (x, y) is the top-left corner. */
+export interface Frame extends Base {
+  kind: "frame";
+  width: number;
+  height: number;
+  shape: FrameShape;
+}
+
+export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame;
 export type Kind = Annotation["kind"];
 
 /** Style properties that apply to each kind. */
@@ -62,6 +77,7 @@ export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   text: ["color", "size", "boxed"],
   arrow: ["color", "size", "heads", "headStyle"],
   magnifier: ["size", "zoom", "blurOutside"],
+  frame: ["color", "size", "shape"],
 };
 
 export const COLORS = [
@@ -83,6 +99,7 @@ export const DEFAULT_STYLE: Style = {
   headStyle: "filled",
   zoom: 2,
   blurOutside: false,
+  shape: "rect",
 };
 
 export const MAGNIFIER_COLOR = "#ffffff";
@@ -120,7 +137,21 @@ export function styleFor(kind: Kind, style: Partial<Style>): Partial<Style> {
 
 export function translate(a: Annotation, dx: number, dy: number): Annotation {
   const moved = { ...a, x: a.x + dx, y: a.y + dy };
-  return moved.kind === "arrow" ? { ...moved, x2: moved.x2 + dx, y2: moved.y2 + dy } : moved;
+  if (moved.kind === "arrow") return { ...moved, x2: moved.x2 + dx, y2: moved.y2 + dy };
+  if (moved.kind === "marker" && moved.tx !== undefined && moved.ty !== undefined) {
+    return { ...moved, tx: moved.tx + dx, ty: moved.ty + dy };
+  }
+  return moved;
+}
+
+/** Rectangle spanned by two corner points. */
+export function spanRect(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    width: Math.abs(b.x - a.x),
+    height: Math.abs(b.y - a.y),
+  };
 }
 
 /** Next step number: one more than the highest existing marker. */
