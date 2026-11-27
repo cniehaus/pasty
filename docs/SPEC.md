@@ -51,8 +51,18 @@ Ziel: Bildschirmfotos aufnehmen und mit Text und Nummern 1/2/3/4 annotieren.
 
 ### 4.1 Aufnahme
 
-- Auslösen per globalem Tastenkürzel und über ein Tray-/Menüleisten-Icon.
-- Bereich auf dem aktuellen Bildschirm mit der Maus markieren, Escape bricht ab.
+- Auslösen per globalem Tastenkürzel (Vorschlag: ⌘⇧2 bzw. Strg+Umschalt+2)
+  und über ein Tray-/Menüleisten-Icon.
+- **Bildschirm einfrieren:** Beim Auslösen wird zuerst der ganze Bildschirm
+  aufgenommen und als Standbild im Vollbild angezeigt. Darauf wird der Bereich
+  markiert. So ändert sich nichts mehr, während man auswählt.
+- **Auswahl-Overlay** (Vorbild: Screenpresso):
+  - Standbild leicht abgedunkelt, der markierte Bereich erscheint hell mit
+    farbigem Rahmen.
+  - Fadenkreuz: horizontale und vertikale Hilfslinie über den ganzen Bildschirm
+    an der Mausposition.
+  - Anzeige der Auswahlgröße in Pixeln (z. B. „527 × 646“).
+  - Escape bricht ab.
 - Nach der Aufnahme öffnet sich der Editor.
 
 ### 4.2 Editor
@@ -81,15 +91,14 @@ geplant).
 | Phase | Inhalt |
 |---|---|
 | **1 – MVP** | Bereichsaufnahme, Editor mit Nummernmarkern und Text, Kopieren/Speichern |
-| **2 – Editor ausbauen** | Pfeil/Linie, Ellipse/Rechteck (Einkreisen), Nummernmarker mit Zeigerlinie, Buchstaben-Marker (A, B, C), Sprechblasen, Unkenntlichmachen/Pixeln, Zuschneiden, Timer-Aufnahme, Bild-im-Bild (z. B. aufgeklapptes Menü einfügen), weitere Aufnahmearten (Fenster, ganzer Bildschirm) |
+| **2 – Editor ausbauen** | Pfeil/Linie, Ellipse/Rechteck (Einkreisen), Nummernmarker mit Zeigerlinie, Buchstaben-Marker (A, B, C), Sprechblasen, Unkenntlichmachen/Pixeln, Zuschneiden, **Timer-Aufnahme** (3 s und 10 s; nach Ablauf wird der Bildschirm eingefroren, dann Bereich markieren – damit lassen sich z. B. aufgeklappte Menüs aufnehmen), **Lupe** im Auswahl-Overlay (vergrößerter Ausschnitt mit Pixelraster für pixelgenaues Markieren), weitere Aufnahmearten (Fenster, ganzer Bildschirm) |
 | **3 – Textbausteine** | Systemweite Textexpansion mit Kürzeln im Format `@@kürzel`, Platzhalter (Datum, Uhrzeit …), Auswahlfenster per Tastenkürzel |
 | **4 – Clipboard-Verlauf** | Verlauf für Texte und Bilder, inkl. Screenshots aus Pasta |
 | **5 – Gemeinsame Nutzung** | Gemeinsame Bausteine aus einer Datei auf dem Netzlaufwerk (zusätzlich zu privaten), Platzhalter aus einem Benutzerprofil (`{Name}`, `{Funktion}`) |
-| **Später** | Windows-Installer für zentrale Verteilung (MSI), Code-Signing/Notarisierung |
+| **Später** | Windows-Installer für zentrale Verteilung (MSI), Code-Signing/Notarisierung, ggf. Bild-im-Bild (zweiten Screenshot einfügen) – vorerst zurückgestellt |
 
 ## 6. Offene Fragen (werden in der jeweiligen Phase geklärt)
 
-- **Phase 2:** Genaues Verhalten von Bild-im-Bild und Timer.
 - **Phase 3:**
   - Ersetzung sofort nach vollständigem Kürzel oder erst nach Leerzeichen/Tab?
     (Vorschlag: sofort)
