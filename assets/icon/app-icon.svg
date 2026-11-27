@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Pasta app icon "B1 Basilikum": two overlapping ravioli = copy symbol.
+       Drawn on a 100-unit grid, placed on Apple's 1024 grid (824 px body, 100 px margin). -->
+  <defs>
+    <linearGradient id="basil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#45985f" />
+      <stop offset="1" stop-color="#22663b" />
+    </linearGradient>
+    <filter id="lift" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.28" />
+    </filter>
+    <filter id="icon-shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  <g transform="translate(100 100) scale(8.24)">
+    <rect width="100" height="100" rx="22.5" fill="url(#basil)" filter="url(#icon-shadow)" />
+    <!-- back ravioli -->
+    <rect x="16" y="16" width="44" height="44" rx="7.92" fill="#efc25a" stroke="#cf9632" stroke-width="4.84" stroke-dasharray="3.08 2.42" />
+    <circle cx="38" cy="38" r="9.68" fill="#dfa840" />
+    <circle cx="34.92" cy="34.92" r="3.08" fill="#f6d585" />
+    <!-- front ravioli -->
+    <g filter="url(#lift)">
+      <rect x="40" y="40" width="44" height="44" rx="7.92" fill="#f6cf68" stroke="#d9a23a" stroke-width="4.84" stroke-dasharray="3.08 2.42" />
+      <circle cx="62" cy="62" r="9.68" fill="#e7b24a" />
+      <circle cx="58.92" cy="58.92" r="3.08" fill="#fbe09a" />
+    </g>
+  </g>
+</svg>

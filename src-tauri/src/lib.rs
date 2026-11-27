@@ -17,6 +17,7 @@ use std::borrow::Cow;
 use tauri::{
     AppHandle, Manager, RunEvent,
     http::{Response, StatusCode, header},
+    image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
@@ -62,6 +63,27 @@ fn serve_image(app: &AppHandle, path: &str) -> Response<Cow<'static, [u8]>> {
     response.expect("valid static response")
 }
 
+/// Menu bar icon: a black template image that macOS tints for light and
+/// dark menu bars (source: `assets/icon/tray-icon.svg`).
+#[cfg(target_os = "macos")]
+fn tray_icon(_app: &AppHandle) -> tauri::Result<(Image<'static>, bool)> {
+    Ok((
+        Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?,
+        true,
+    ))
+}
+
+/// Elsewhere the coloured app icon; a black glyph would vanish on a dark
+/// taskbar.
+#[cfg(not(target_os = "macos"))]
+fn tray_icon(app: &AppHandle) -> tauri::Result<(Image<'static>, bool)> {
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .expect("app icon missing");
+    Ok((icon, false))
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let capture = MenuItem::with_id(
         app,
@@ -73,13 +95,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Pasta beenden", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&capture, &quit])?;
 
+    let (icon, is_template) = tray_icon(app)?;
     TrayIconBuilder::with_id("pasta-tray")
-        // TODO: dedicated monochrome tray icon.
-        .icon(
-            app.default_window_icon()
-                .cloned()
-                .expect("app icon missing"),
-        )
+        .icon(icon)
+        .icon_as_template(is_template)
         .tooltip("Pasta")
         .menu(&menu)
         .show_menu_on_left_click(true)

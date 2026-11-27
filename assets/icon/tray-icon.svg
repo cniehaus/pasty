@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Menu bar icon "T2": back ravioli as outline, front one filled with the
+       filling cut out. Black on transparent; macOS uses it as template image. -->
+  <defs>
+    <mask id="filling" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+      <rect width="24" height="24" fill="#fff" />
+      <circle cx="15" cy="15" r="2.6" fill="#000" />
+    </mask>
+  </defs>
+  <path d="M15 7.8 V5 a2 2 0 0 0 -2 -2 H5 a2 2 0 0 0 -2 2 v8 a2 2 0 0 0 2 2 h2.8" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="9" y="9" width="12" height="12" rx="2.4" fill="#000" mask="url(#filling)" />
+</svg>
