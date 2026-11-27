@@ -8,6 +8,7 @@
 
 mod capture;
 mod editor;
+mod export;
 mod overlay;
 mod store;
 
@@ -100,7 +101,10 @@ pub fn run() {
             overlay::overlay_ready,
             overlay::cancel_selection,
             overlay::finish_selection,
+            export::copy_png,
+            export::save_png,
         ])
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {

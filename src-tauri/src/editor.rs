@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 use crate::{capture, store::ImageStore};
 
-const MIN_SIZE: (f64, f64) = (480.0, 320.0);
+const MIN_SIZE: (f64, f64) = (760.0, 360.0);
 const MAX_INITIAL_SIZE: (f64, f64) = (1200.0, 800.0);
 /// Room around the image for toolbar and margins.
 const CHROME: (f64, f64) = (48.0, 96.0);
@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn initial_size_converts_to_points_and_clamps() {
-        assert_eq!(initial_size(1000, 600, 2.0), (548.0, 396.0));
+        assert_eq!(initial_size(2000, 600, 2.0), (1048.0, 396.0));
         assert_eq!(initial_size(10, 10, 1.0), MIN_SIZE);
         assert_eq!(initial_size(10_000, 10_000, 1.0), MAX_INITIAL_SIZE);
     }

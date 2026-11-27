@@ -5,12 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pasta</title>
     <link rel="stylesheet" href="/src/styles.css" />
-    <link rel="stylesheet" href="/src/editor.css" />
-    <script type="module" src="/src/editor.ts"></script>
+    <link rel="stylesheet" href="/src/editor/editor.css" />
+    <script type="module" src="/src/editor/main.ts"></script>
   </head>
   <body>
-    <main class="stage">
-      <img id="capture" alt="Bildschirmfoto" />
+    <header class="toolbar">
+      <div class="group" role="radiogroup" aria-label="Werkzeug">
+        <button class="tool" data-tool="select" title="Auswählen (V)" aria-label="Auswählen">
+          <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" /></svg>
+        </button>
+        <button class="tool" data-tool="marker" title="Nummer (N)" aria-label="Nummer">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M10.5 9l2-1.5V16" />
+          </svg>
+        </button>
+        <button class="tool" data-tool="text" title="Text (T)" aria-label="Text">
+          <svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6" /></svg>
+        </button>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="group" id="colors" role="radiogroup" aria-label="Farbe"></div>
+
+      <div class="separator"></div>
+
+      <div class="group segmented" role="radiogroup" aria-label="Größe">
+        <button data-size="s" title="Klein">S</button>
+        <button data-size="m" title="Mittel">M</button>
+        <button data-size="l" title="Groß">L</button>
+      </div>
+
+      <label class="toggle" title="Text mit weißem Kasten hinterlegen">
+        <input type="checkbox" id="boxed" />
+        Kasten
+      </label>
+
+      <div class="spacer"></div>
+
+      <div class="group">
+        <button id="undo" title="Rückgängig (⌘Z)" aria-label="Rückgängig">
+          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3" /></svg>
+        </button>
+        <button id="redo" title="Wiederholen (⇧⌘Z)" aria-label="Wiederholen">
+          <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3" /></svg>
+        </button>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="group">
+        <button id="save-as" class="text-button" title="Speichern unter … (⇧⌘S)">Speichern unter …</button>
+        <button id="save" class="text-button" title="In Bilder/Pasta speichern (⌘S)">Speichern</button>
+        <button id="copy" class="text-button primary" title="In die Zwischenablage kopieren (⌘C)">
+          Kopieren
+        </button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage-area">
+      <div id="stage"></div>
     </main>
+
+    <div id="toast" role="status" aria-live="polite"></div>
   </body>
 </html>
