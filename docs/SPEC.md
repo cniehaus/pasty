@@ -25,7 +25,7 @@ in eine E-Mail einfügen.
 | --- | --- |
 | Lizenz | GPL-3.0, Open Source auf GitHub |
 | Datenhaltung | Ausschließlich lokal. Keine Cloud, kein Konto, keine Telemetrie. |
-| Plattformen | **macOS zuerst**, Windows 11 wird von Anfang an mitgedacht |
+| Plattformen | **macOS zuerst** (ab macOS 26), Windows 11 wird von Anfang an mitgedacht |
 | Technik | Tauri 2: Kern in Rust, Oberfläche/Zeichenfläche in TypeScript |
 | Sprache der UI | Deutsch (Struktur für spätere Übersetzungen vorsehen) |
 | Mail-Programme | Outlook, Thunderbird, Apple Mail – über systemweite Integration (Zwischenablage, Tastenkürzel), **keine** Plugins/Add-ins |

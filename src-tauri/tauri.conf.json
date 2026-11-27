@@ -28,6 +28,10 @@
     ],
     "category": "Productivity",
     "shortDescription": "Screenshots annotieren und Textbausteine einfügen",
-    "copyright": "© 2026 Carsten Niehaus, GPL-3.0-or-later"
+    "copyright": "© 2026 Carsten Niehaus, GPL-3.0-or-later",
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "26.0"
+    }
   }
 }
