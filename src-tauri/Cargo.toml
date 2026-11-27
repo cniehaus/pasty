@@ -1,6 +1,6 @@
 [package]
 name = "pasta"
-version = "0.1.0"
+version = "0.1.1"
 description = "Screenshots annotieren und Textbausteine einfügen"
 authors = ["Carsten Niehaus"]
 license = "GPL-3.0-or-later"
