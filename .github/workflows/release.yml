@@ -78,22 +78,21 @@ jobs:
           node-version: lts/*
           cache: npm
 
+      # Apple silicon only (macos-latest runs on arm64); no Intel builds.
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - name: Build (universal, ad-hoc signed)
+      - name: Build (Apple silicon, ad-hoc signed)
         run: |
           npm ci
-          npm run tauri build -- --target universal-apple-darwin --bundles dmg
+          npm run tauri build -- --bundles dmg
 
       - name: Attach to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/dmg/*.dmg
