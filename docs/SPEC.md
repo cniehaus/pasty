@@ -22,7 +22,7 @@ in eine E-Mail einfügen.
 ## 3. Rahmenbedingungen
 
 | Thema | Festlegung |
-|---|---|
+| --- | --- |
 | Lizenz | GPL-3.0, Open Source auf GitHub |
 | Datenhaltung | Ausschließlich lokal. Keine Cloud, kein Konto, keine Telemetrie. |
 | Plattformen | **macOS zuerst**, Windows 11 wird von Anfang an mitgedacht |
@@ -90,7 +90,7 @@ geplant).
 ## 5. Roadmap
 
 | Phase | Inhalt |
-|---|---|
+| --- | --- |
 | **1 – MVP** | Bereichsaufnahme, Editor mit Nummernmarkern und Text, Kopieren/Speichern |
 | **2 – Editor ausbauen** | Pfeil/Linie, Ellipse/Rechteck (Einkreisen), Nummernmarker mit Zeigerlinie, Buchstaben-Marker (A, B, C), Sprechblasen, Unkenntlichmachen/Pixeln, Zuschneiden, **Timer-Aufnahme** (3 s und 10 s; nach Ablauf wird der Bildschirm eingefroren, dann Bereich markieren – damit lassen sich z. B. aufgeklappte Menüs aufnehmen), **Lupe** im Auswahl-Overlay (vergrößerter Ausschnitt mit Pixelraster für pixelgenaues Markieren), weitere Aufnahmearten (Fenster, ganzer Bildschirm) |
 | **3 – Textbausteine** | Systemweite Textexpansion mit Kürzeln im Format `@@kürzel`, Platzhalter (Datum, Uhrzeit …), Auswahlfenster per Tastenkürzel |

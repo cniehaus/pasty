@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Grundrechte für alle Pasta-Fenster",
+  "windows": [
+    "*"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

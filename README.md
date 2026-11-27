@@ -28,6 +28,29 @@ Alles bleibt **lokal** – keine Cloud, kein Konto, keine Telemetrie.
 - [Tauri 2](https://tauri.app/) – Kern in **Rust**, Oberfläche/Zeichenfläche in **TypeScript**
 - Zielplattformen: macOS (zuerst), Windows 11
 
+## Entwicklung
+
+Voraussetzungen: [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) (LTS),
+auf macOS die Xcode Command Line Tools, auf Windows die
+[Tauri-Voraussetzungen](https://tauri.app/start/prerequisites/).
+
+```sh
+npm install
+npm run tauri dev     # App im Entwicklungsmodus starten
+npm run tauri build   # Installer bauen (DMG bzw. MSI/EXE)
+```
+
+Pasta erscheint als Icon in der Menüleiste (macOS) bzw. im Infobereich
+(Windows). Aufnahme per **⌘⇧2** bzw. **Strg+Umschalt+2**.
+
+Projektstruktur:
+
+| Pfad | Inhalt |
+| --- | --- |
+| `src-tauri/` | Rust-Kern (Aufnahme, Zwischenablage, Hotkeys, Speichern …) |
+| `src/` | Oberfläche in TypeScript (Auswahl-Overlay, Editor) |
+| `docs/SPEC.md` | Projektrahmen und Roadmap |
+
 ## Lizenz
 
 [GPL-3.0](LICENSE)
