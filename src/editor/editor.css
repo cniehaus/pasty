@@ -99,6 +99,17 @@ button:disabled {
 
 button svg .fill {
   fill: currentColor;
+  stroke: none;
+}
+
+button svg .dim {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.35;
+}
+
+button svg .bright {
+  fill: var(--toolbar-bg);
 }
 
 [hidden] {
@@ -184,7 +195,9 @@ button svg {
 #stage.tool-text,
 #stage.tool-arrow,
 #stage.tool-magnifier,
-#stage.tool-frame {
+#stage.tool-frame,
+#stage.tool-redact,
+#stage.tool-spotlight {
   cursor: crosshair;
 }
 
@@ -231,4 +244,24 @@ button svg {
 
 #toast.error {
   background: #c62828;
+}
+
+/* Tooltip */
+
+#tooltip {
+  position: fixed;
+  z-index: 20;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgb(30 30 34 / 0.94);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+#tooltip.visible {
+  opacity: 1;
 }

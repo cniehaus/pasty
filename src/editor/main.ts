@@ -12,6 +12,7 @@ import {
   type HeadPosition,
   type HeadStyle,
   type Kind,
+  type RedactMode,
   type Size,
   type Style,
   type TextNote,
@@ -132,6 +133,26 @@ function updateDraftFactory() {
         shape: style.shape,
       });
       break;
+    case "redact":
+      canvas.draftFactory = (s, e) => ({
+        kind: "redact",
+        id: newId(),
+        ...spanRect(s, e),
+        color,
+        size,
+        redactMode: style.redactMode,
+      });
+      break;
+    case "spotlight":
+      canvas.draftFactory = (s, e) => ({
+        kind: "spotlight",
+        id: newId(),
+        ...spanRect(s, e),
+        color,
+        size,
+        shape: style.shape,
+      });
+      break;
     case "marker":
       // Click: plain marker (onBackgroundClick). Drag: marker with pointer.
       canvas.draftFactory = (s, e) => ({
@@ -203,7 +224,7 @@ function onBackgroundClick(p: Point) {
   } else if (tool === "select") {
     select(null);
   }
-  // Arrow and frame tools create by dragging (onDraw).
+  // Other tools create by dragging (onDraw).
 }
 
 function onDraw(annotation: Annotation) {
@@ -386,6 +407,9 @@ function buildToolbar() {
   document.querySelectorAll<HTMLButtonElement>("[data-shape]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ shape: b.dataset.shape as FrameShape })),
   );
+  document.querySelectorAll<HTMLButtonElement>("[data-redact-mode]").forEach((b) =>
+    b.addEventListener("click", () => setStyle({ redactMode: b.dataset.redactMode as RedactMode })),
+  );
   document.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ zoom: Number(b.dataset.zoom) })),
   );
@@ -404,11 +428,49 @@ function buildToolbar() {
   // Buttons must not steal keyboard focus from the editor shortcuts.
   document.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (e) => e.preventDefault()));
 
-  if (!IS_MAC) {
-    document.querySelectorAll<HTMLElement>("[title]").forEach((el) => {
-      el.title = el.title.replace("⇧⌘", "Strg+Umschalt+").replace("⌘", "Strg+");
+  setupTooltips();
+}
+
+const TOOLTIP_DELAY_MS = 400;
+
+/**
+ * Custom tooltips from the `title` attributes. Native ones don't reliably
+ * show in the webview of a menu bar app, and these look the same everywhere.
+ */
+function setupTooltips() {
+  const tip = $<HTMLDivElement>("#tooltip");
+  let timer: number | undefined;
+
+  const hide = () => {
+    clearTimeout(timer);
+    tip.classList.remove("visible");
+  };
+
+  document.querySelectorAll<HTMLElement>("[title]").forEach((el) => {
+    let text = el.title;
+    if (!IS_MAC) text = text.replace("⇧⌘", "Strg+Umschalt+").replace("⌘", "Strg+");
+    el.dataset.tooltip = text;
+    el.removeAttribute("title");
+    if (!el.hasAttribute("aria-label") && el.tagName === "BUTTON") el.setAttribute("aria-label", text);
+
+    el.addEventListener("mouseenter", () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        tip.textContent = el.dataset.tooltip!;
+        const r = el.getBoundingClientRect();
+        tip.style.left = "0px";
+        tip.classList.add("visible");
+        const left = Math.min(
+          Math.max(4, r.left + r.width / 2 - tip.offsetWidth / 2),
+          window.innerWidth - tip.offsetWidth - 4,
+        );
+        tip.style.left = `${left}px`;
+        tip.style.top = `${r.bottom + 6}px`;
+      }, TOOLTIP_DELAY_MS);
     });
-  }
+    el.addEventListener("mouseleave", hide);
+    el.addEventListener("mousedown", hide);
+  });
 }
 
 function updateToolbar() {
@@ -424,6 +486,7 @@ function updateToolbar() {
   check("[data-head-style]", (el) => el.dataset.headStyle === style.headStyle);
   check("[data-zoom]", (el) => Number(el.dataset.zoom) === style.zoom);
   check("[data-shape]", (el) => el.dataset.shape === style.shape);
+  check("[data-redact-mode]", (el) => el.dataset.redactMode === style.redactMode);
   $<HTMLInputElement>("#boxed").checked = style.boxed;
   $<HTMLInputElement>("#blur-outside").checked = style.blurOutside;
 
@@ -497,6 +560,10 @@ window.addEventListener("keydown", (e) => {
     setTool("magnifier");
   } else if (key === "r") {
     setTool("frame");
+  } else if (key === "u") {
+    setTool("redact");
+  } else if (key === "b") {
+    setTool("spotlight");
   } else if (key === "enter" && selected()?.kind === "text") {
     onEditText(selectedId!);
   }

@@ -7,15 +7,22 @@ import Konva from "konva";
 import {
   type Annotation,
   type Arrow,
+  type BoxAnnotation,
   type Frame,
+  type FrameShape,
   type HeadStyle,
   type Magnifier,
   type Marker,
+  type Redaction,
+  type Spotlight,
   type TextNote,
   MAGNIFIER_COLOR,
   contrastColor,
+  dimOpacity,
   fontSize,
   markerRadius,
+  pixelBlockSize,
+  redactBlurRadius,
   strokeWidth,
 } from "./model";
 
@@ -60,6 +67,12 @@ export class AnnotationCanvas {
   draftFactory: DraftFactory | null = null;
 
   private readonly blurNode: Konva.Image;
+  /** Redactions sit directly on the image, below everything else. */
+  private readonly redactLayer = new Konva.Layer();
+  /** Dimming around spotlights. */
+  private readonly dimLayer = new Konva.Layer({ listening: false });
+  private readonly dimShape: Konva.Shape;
+  private spotlights: { node: Konva.Group; spot: Spotlight }[] = [];
   private readonly annotationLayer = new Konva.Layer();
   /** Selection UI and drag previews; hidden when exporting. */
   private readonly uiLayer = new Konva.Layer();
@@ -70,7 +83,10 @@ export class AnnotationCanvas {
     borderDash: [4, 4],
     padding: 4,
   });
-  private blurred: HTMLCanvasElement | null = null;
+  /** Derived images, keyed by what they depend on. */
+  private readonly cache = new Map<string, HTMLCanvasElement>();
+  /** Image with all redactions applied; source for lenses and blur. */
+  private base: { key: string; canvas: HTMLCanvasElement } | null = null;
   private drawing: { start: Point; preview: Konva.Group; draft: Annotation | null } | null = null;
   /** Set after a drag-draw so the trailing click doesn't also act. */
   private suppressClick = false;
@@ -90,8 +106,13 @@ export class AnnotationCanvas {
       new Konva.Image({ image, width: image.naturalWidth, height: image.naturalHeight }),
       this.blurNode,
     );
+    this.dimShape = new Konva.Shape({
+      sceneFunc: (ctx) => this.drawDimming(ctx._context),
+      visible: false,
+    });
+    this.dimLayer.add(this.dimShape);
     this.uiLayer.add(this.transformer);
-    this.stage.add(imageLayer, this.annotationLayer, this.uiLayer);
+    this.stage.add(imageLayer, this.redactLayer, this.dimLayer, this.annotationLayer, this.uiLayer);
 
     this.stage.on("mousedown touchstart", (e) => {
       this.suppressClick = false;
@@ -139,10 +160,13 @@ export class AnnotationCanvas {
   render(annotations: readonly Annotation[], selectedId: string | null, hiddenId?: string): void {
     this.transformer.nodes([]);
     this.uiLayer.find(".handle").forEach((n) => n.destroy());
+    this.redactLayer.destroyChildren();
     this.annotationLayer.destroyChildren();
+    this.spotlights = [];
 
+    this.updateBase(annotations.filter((a): a is Redaction => a.kind === "redact"));
     const blur = annotations.some((a) => a.kind === "magnifier" && a.blurOutside);
-    if (blur) this.blurNode.image(this.blurredImage());
+    if (blur) this.blurNode.image(this.blurredBase());
     this.blurNode.visible(blur);
 
     // Lenses at the bottom so that markers and arrows stay visible on top.
@@ -156,9 +180,15 @@ export class AnnotationCanvas {
       node.draggable(true);
       const origin = { x: node.x(), y: node.y() };
       node.on("dragend", () => this.callbacks.onTranslate(a.id, node.x() - origin.x, node.y() - origin.y));
-      this.annotationLayer.add(node);
+      (a.kind === "redact" ? this.redactLayer : this.annotationLayer).add(node);
+      if (a.kind === "spotlight") {
+        this.spotlights.push({ node, spot: a });
+        node.on("dragmove transform", () => this.dimLayer.batchDraw());
+      }
       if (a.id === selectedId) this.showSelection(a, node);
     }
+    this.dimShape.visible(this.spotlights.length > 0);
+    this.dimLayer.batchDraw();
   }
 
   /** Renders the annotated image at full resolution. */
@@ -198,6 +228,12 @@ export class AnnotationCanvas {
         break;
       case "frame":
         this.drawFrame(group, a);
+        break;
+      case "redact":
+        this.drawRedaction(group, a);
+        break;
+      case "spotlight":
+        this.drawSpotlight(group, a);
         break;
     }
     return group;
@@ -324,7 +360,8 @@ export class AnnotationCanvas {
     const lens = new Konva.Group({
       clipFunc: (ctx) => ctx.arc(0, 0, m.radius, 0, Math.PI * 2, false),
     });
-    const zoomed = new Konva.Image({ image: this.image, width: w * m.zoom, height: h * m.zoom });
+    // Zoom into the redacted image so a lens can't reveal hidden content.
+    const zoomed = new Konva.Image({ image: this.baseImage(), width: w * m.zoom, height: h * m.zoom });
     // The lens shows the image around its current centre, also while dragging.
     const follow = () => zoomed.position({ x: -group.x() * m.zoom, y: -group.y() * m.zoom });
     follow();
@@ -354,39 +391,134 @@ export class AnnotationCanvas {
       strokeScaleEnabled: false,
       hitStrokeWidth: Math.max(width, HIT_TOLERANCE * this.pixelRatio),
     };
+    group.add(outlineShape(f.shape, f.width, f.height, { ...common, cornerRadius: width }));
+  }
+
+  private drawRedaction(group: Konva.Group, r: Redaction): void {
+    group.position({ x: r.x, y: r.y });
+    if (r.redactMode === "solid") {
+      group.add(new Konva.Rect({ width: r.width, height: r.height, fill: r.color }));
+      return;
+    }
+    // Show the matching part of a fully processed copy of the image; the
+    // crop follows while dragging.
+    const content = new Konva.Image({
+      image: this.redactedImage(r),
+      width: r.width,
+      height: r.height,
+      crop: { x: r.x, y: r.y, width: r.width, height: r.height },
+    });
+    group.on("dragmove", () =>
+      content.crop({ x: group.x(), y: group.y(), width: r.width, height: r.height }),
+    );
+    group.add(content);
+  }
+
+  private drawSpotlight(group: Konva.Group, s: Spotlight): void {
+    group.position({ x: s.x, y: s.y });
+    // Invisible outline as grab handle; the dimming shows the area. The
+    // inside stays clickable for other tools.
     group.add(
-      f.shape === "ellipse"
-        ? new Konva.Ellipse({
-            x: f.width / 2,
-            y: f.height / 2,
-            radiusX: f.width / 2,
-            radiusY: f.height / 2,
-            ...common,
-          })
-        : new Konva.Rect({
-            width: f.width,
-            height: f.height,
-            cornerRadius: width,
-            lineJoin: "round",
-            ...common,
-          }),
+      outlineShape(s.shape, s.width, s.height, {
+        stroke: "rgba(0, 0, 0, 0)",
+        strokeWidth: 1,
+        fillEnabled: false,
+        strokeScaleEnabled: false,
+        hitStrokeWidth: HIT_TOLERANCE * this.pixelRatio,
+      }),
     );
   }
 
-  /** Full image blurred once, shown beneath lenses with `blurOutside`. */
-  private blurredImage(): HTMLCanvasElement {
-    if (!this.blurred) {
-      const canvas = document.createElement("canvas");
+  /** Dims everything except the spotlight areas (live node geometry). */
+  private drawDimming(ctx: CanvasRenderingContext2D): void {
+    if (this.spotlights.length === 0) return;
+    const opacity = Math.max(...this.spotlights.map((s) => dimOpacity(s.spot.size)));
+    ctx.save();
+    ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+    ctx.fillRect(0, 0, this.image.naturalWidth, this.image.naturalHeight);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = "#000";
+    for (const { node, spot } of this.spotlights) {
+      const w = spot.width * node.scaleX();
+      const h = spot.height * node.scaleY();
+      ctx.beginPath();
+      if (spot.shape === "ellipse") {
+        ctx.ellipse(node.x() + w / 2, node.y() + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+      } else {
+        ctx.rect(node.x(), node.y(), w, h);
+      }
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------- derived images ---
+
+  private derived(key: string, draw: (ctx: CanvasRenderingContext2D) => void): HTMLCanvasElement {
+    let canvas = this.cache.get(key);
+    if (!canvas) {
+      canvas = document.createElement("canvas");
       canvas.width = this.image.naturalWidth;
       canvas.height = this.image.naturalHeight;
-      const ctx = canvas.getContext("2d")!;
-      // Unblurred first, so the edges don't fade to transparent.
-      ctx.drawImage(this.image, 0, 0);
-      ctx.filter = `blur(${BLUR_RADIUS * this.pixelRatio}px)`;
-      ctx.drawImage(this.image, 0, 0);
-      this.blurred = canvas;
+      draw(canvas.getContext("2d")!);
+      this.cache.set(key, canvas);
     }
-    return this.blurred;
+    return canvas;
+  }
+
+  /** Whole image processed with a redaction's mode and strength. */
+  private redactedImage(r: Redaction): HTMLCanvasElement {
+    const { naturalWidth: w, naturalHeight: h } = this.image;
+    if (r.redactMode === "pixelate") {
+      const block = pixelBlockSize(r.size, this.pixelRatio);
+      return this.derived(`pixelate:${block}`, (ctx) => {
+        // Downscale (averaging), then upscale without smoothing.
+        const small = document.createElement("canvas");
+        small.width = Math.ceil(w / block);
+        small.height = Math.ceil(h / block);
+        small.getContext("2d")!.drawImage(this.image, 0, 0, small.width, small.height);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(small, 0, 0, small.width * block, small.height * block);
+      });
+    }
+    const radius = redactBlurRadius(r.size, this.pixelRatio);
+    return this.derived(`blur:${radius}`, (ctx) => drawBlurred(ctx, this.image, radius));
+  }
+
+  /** Rebuilds the redacted base image when the redactions changed. */
+  private updateBase(redactions: Redaction[]): void {
+    const key = JSON.stringify(redactions.map(({ id: _, ...r }) => r));
+    if (this.base?.key === key) return;
+    if (redactions.length === 0) {
+      this.base = null;
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = this.image.naturalWidth;
+    canvas.height = this.image.naturalHeight;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(this.image, 0, 0);
+    for (const r of redactions) {
+      if (r.redactMode === "solid") {
+        ctx.fillStyle = r.color;
+        ctx.fillRect(r.x, r.y, r.width, r.height);
+      } else {
+        ctx.drawImage(this.redactedImage(r), r.x, r.y, r.width, r.height, r.x, r.y, r.width, r.height);
+      }
+    }
+    this.base = { key, canvas };
+  }
+
+  private baseImage(): HTMLImageElement | HTMLCanvasElement {
+    return this.base?.canvas ?? this.image;
+  }
+
+  /** Base image blurred, shown beneath lenses with `blurOutside`. */
+  private blurredBase(): HTMLCanvasElement {
+    const source = this.baseImage();
+    return this.derived(`outside:${this.base?.key ?? ""}`, (ctx) =>
+      drawBlurred(ctx, source, BLUR_RADIUS * this.pixelRatio),
+    );
   }
 
   // --------------------------------------------------------- selection ---
@@ -410,17 +542,23 @@ export class AnnotationCanvas {
         );
         return;
       case "frame":
-        this.showTransformer(node, "free");
-        node.on("transformend", () =>
-          this.callbacks.onUpdate(a.id, {
-            x: node.x(),
-            y: node.y(),
-            width: Math.max(1, a.width * node.scaleX()),
-            height: Math.max(1, a.height * node.scaleY()),
-          }),
-        );
+      case "redact":
+      case "spotlight":
+        this.showBoxTransformer(a, node);
         return;
     }
+  }
+
+  private showBoxTransformer(a: BoxAnnotation, node: Konva.Group): void {
+    this.showTransformer(node, "free");
+    node.on("transformend", () =>
+      this.callbacks.onUpdate(a.id, {
+        x: node.x(),
+        y: node.y(),
+        width: Math.max(1, a.width * node.scaleX()),
+        height: Math.max(1, a.height * node.scaleY()),
+      }),
+    );
   }
 
   private showTransformer(node: Konva.Group, resize: "none" | "uniform" | "free"): void {
@@ -525,6 +663,83 @@ export class AnnotationCanvas {
       this.callbacks.onDraw(draft);
     }
   }
+}
+
+/**
+ * Draws `source` blurred by roughly `radius` pixels: three box-blur passes
+ * (close to a Gaussian) on a moderately downscaled copy. Done in JS because
+ * WebKit ignores `ctx.filter`.
+ */
+function drawBlurred(
+  ctx: CanvasRenderingContext2D,
+  source: HTMLImageElement | HTMLCanvasElement,
+  radius: number,
+): void {
+  const { width, height } = ctx.canvas;
+  // Downscale only so far that a few pixels of blur remain; keeps it fast.
+  const factor = Math.max(1, Math.floor(radius / 3));
+  const small = document.createElement("canvas");
+  small.width = Math.max(1, Math.round(width / factor));
+  small.height = Math.max(1, Math.round(height / factor));
+  const sctx = small.getContext("2d")!;
+  sctx.imageSmoothingQuality = "high";
+  sctx.drawImage(source, 0, 0, small.width, small.height);
+
+  const image = sctx.getImageData(0, 0, small.width, small.height);
+  const r = Math.max(1, Math.round(radius / factor / 2));
+  let data: Uint8ClampedArray = image.data;
+  for (let pass = 0; pass < 3; pass++) {
+    data = boxBlur(data, small.width, small.height, r, true);
+    data = boxBlur(data, small.width, small.height, r, false);
+  }
+  image.data.set(data);
+  sctx.putImageData(image, 0, 0);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(small, 0, 0, width, height);
+}
+
+/** One box-blur pass along rows (`horizontal`) or columns; edges clamped. */
+function boxBlur(
+  src: Uint8ClampedArray,
+  width: number,
+  height: number,
+  r: number,
+  horizontal: boolean,
+): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(src.length);
+  const length = horizontal ? width : height;
+  const lines = horizontal ? height : width;
+  const step = horizontal ? 4 : width * 4;
+  const size = 2 * r + 1;
+  const at = (i: number) => Math.min(length - 1, Math.max(0, i)) * step;
+
+  for (let line = 0; line < lines; line++) {
+    const base = horizontal ? line * width * 4 : line * 4;
+    for (let c = 0; c < 4; c++) {
+      let sum = 0;
+      for (let k = -r; k <= r; k++) sum += src[base + at(k) + c];
+      for (let i = 0; i < length; i++) {
+        out[base + i * step + c] = sum / size;
+        sum += src[base + at(i + r + 1) + c] - src[base + at(i - r) + c];
+      }
+    }
+  }
+  return out;
+}
+
+/** Rectangle or ellipse filling the box (0, 0, width, height). */
+function outlineShape(
+  shape: FrameShape,
+  width: number,
+  height: number,
+  config: Konva.ShapeConfig & { cornerRadius?: number },
+): Konva.Shape {
+  const { cornerRadius, ...common } = config;
+  return shape === "ellipse"
+    ? new Konva.Ellipse({ x: width / 2, y: height / 2, radiusX: width / 2, radiusY: height / 2, ...common })
+    : new Konva.Rect({ width, height, cornerRadius, lineJoin: "round", ...common });
 }
 
 function annotationId(target: Konva.Node): string | null {

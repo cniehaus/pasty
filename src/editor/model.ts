@@ -4,6 +4,7 @@ export type Size = "s" | "m" | "l";
 export type HeadPosition = "end" | "start" | "both" | "none";
 export type HeadStyle = "filled" | "open" | "dot";
 export type FrameShape = "rect" | "ellipse";
+export type RedactMode = "pixelate" | "blur" | "solid";
 
 /** Current tool settings; each annotation kind uses a subset. */
 export interface Style {
@@ -15,6 +16,7 @@ export interface Style {
   zoom: number;
   blurOutside: boolean;
   shape: FrameShape;
+  redactMode: RedactMode;
 }
 
 interface Base {
@@ -68,7 +70,25 @@ export interface Frame extends Base {
   shape: FrameShape;
 }
 
-export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame;
+/** Area made unreadable; (x, y) is the top-left corner. */
+export interface Redaction extends Base {
+  kind: "redact";
+  width: number;
+  height: number;
+  redactMode: RedactMode;
+}
+
+/** Area that stays bright while everything else is dimmed. */
+export interface Spotlight extends Base {
+  kind: "spotlight";
+  width: number;
+  height: number;
+  shape: FrameShape;
+}
+
+export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame | Redaction | Spotlight;
+/** Annotations described by a rectangle (x, y, width, height). */
+export type BoxAnnotation = Frame | Redaction | Spotlight;
 export type Kind = Annotation["kind"];
 
 /** Style properties that apply to each kind. */
@@ -78,6 +98,8 @@ export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   arrow: ["color", "size", "heads", "headStyle"],
   magnifier: ["size", "zoom", "blurOutside"],
   frame: ["color", "size", "shape"],
+  redact: ["color", "size", "redactMode"],
+  spotlight: ["size", "shape"],
 };
 
 export const COLORS = [
@@ -100,6 +122,7 @@ export const DEFAULT_STYLE: Style = {
   zoom: 2,
   blurOutside: false,
   shape: "rect",
+  redactMode: "pixelate",
 };
 
 export const MAGNIFIER_COLOR = "#ffffff";
@@ -109,6 +132,9 @@ const MARKER_RADIUS: Record<Size, number> = { s: 11, m: 15, l: 20 };
 const FONT_SIZE: Record<Size, number> = { s: 14, m: 20, l: 28 };
 const STROKE_WIDTH: Record<Size, number> = { s: 2.5, m: 4, l: 6 };
 const MAGNIFIER_RADIUS = 90;
+const PIXEL_BLOCK: Record<Size, number> = { s: 6, m: 10, l: 16 };
+const REDACT_BLUR: Record<Size, number> = { s: 6, m: 10, l: 16 };
+const DIM_OPACITY: Record<Size, number> = { s: 0.35, m: 0.55, l: 0.75 };
 
 export function markerRadius(size: Size, pixelRatio: number): number {
   return MARKER_RADIUS[size] * pixelRatio;
@@ -124,6 +150,18 @@ export function strokeWidth(size: Size, pixelRatio: number): number {
 
 export function defaultMagnifierRadius(pixelRatio: number): number {
   return MAGNIFIER_RADIUS * pixelRatio;
+}
+
+export function pixelBlockSize(size: Size, pixelRatio: number): number {
+  return Math.max(2, Math.round(PIXEL_BLOCK[size] * pixelRatio));
+}
+
+export function redactBlurRadius(size: Size, pixelRatio: number): number {
+  return REDACT_BLUR[size] * pixelRatio;
+}
+
+export function dimOpacity(size: Size): number {
+  return DIM_OPACITY[size];
 }
 
 /** Copies the style properties relevant for `kind`. */
