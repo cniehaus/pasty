@@ -33,16 +33,16 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Frontend installieren und bauen
+      - name: Install and build frontend
         run: |
           npm ci
           npm run build
 
-      - name: Rust-Formatierung prüfen
+      - name: Check Rust formatting
         working-directory: src-tauri
         run: cargo fmt --check
 
-      - name: Clippy (Warnungen sind Fehler)
+      - name: Clippy (warnings are errors)
         working-directory: src-tauri
         run: cargo clippy --all-targets -- -D warnings
 
