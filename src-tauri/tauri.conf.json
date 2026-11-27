@@ -32,6 +32,16 @@
     "macOS": {
       "signingIdentity": "-",
       "minimumSystemVersion": "26.0"
+    },
+    "windows": {
+      "nsis": {
+        "languages": [
+          "German"
+        ]
+      },
+      "wix": {
+        "language": "de-DE"
+      }
     }
   }
 }
