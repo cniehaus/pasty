@@ -79,7 +79,8 @@ Ziel: Bildschirmfotos aufnehmen und mit Text und Nummern 1/2/3/4 annotieren.
 
 - **Kopieren** (Button und ⌘C bzw. Strg+C): fertiges Bild in die
   Zwischenablage, direkt in Outlook, Thunderbird und Apple Mail einfügbar.
-- **Speichern** als PNG.
+- **Speichern** als PNG, standardmäßig in `Bilder/Pasta` (wird bei Bedarf
+  angelegt); alternativ „Speichern unter …“.
 
 ### 4.4 Nicht im MVP
 
