@@ -1,33 +1,41 @@
 // Editor controller: owns the state, wires toolbar, keyboard and canvas.
 
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import { save } from "@tauri-apps/plugin-dialog";
 import { storedImageUrl } from "../images";
 import { AnnotationCanvas, FONT_FAMILY, TEXT_LINE_HEIGHT, textPadding, type Point } from "./canvas";
 import { History } from "./history";
 import {
   type Annotation,
+  type HeadPosition,
+  type HeadStyle,
+  type Kind,
   type Size,
+  type Style,
   type TextNote,
   COLORS,
+  DEFAULT_STYLE,
+  MAGNIFIER_COLOR,
+  defaultMagnifierRadius,
   fontSize,
   newId,
   nextMarkerLabel,
+  styleFor,
+  translate,
 } from "./model";
 
-type Tool = "select" | "marker" | "text";
+type Tool = "select" | Kind;
 
 const IS_MAC = navigator.userAgent.includes("Mac");
 const STAGE_MARGIN = 24;
+const MIN_WINDOW_HEIGHT = 360;
 const PATH_HEADER = "x-pasta-path";
 
 const history = new History<readonly Annotation[]>([]);
 let selectedId: string | null = null;
 let tool: Tool = "marker";
-let color: string = COLORS[0].value;
-let size: Size = "m";
-let boxed = false;
+let style: Style = { ...DEFAULT_STYLE };
 let editing: { draft: TextNote; isNew: boolean; textarea: HTMLTextAreaElement } | null = null;
 let canvas: AnnotationCanvas;
 
@@ -50,7 +58,7 @@ function commit(next: readonly Annotation[]) {
   refresh();
 }
 
-function update(id: string, change: Partial<Annotation>) {
+function update(id: string, change: Partial<Annotation> | Partial<Style>) {
   const current = annotations().find((a) => a.id === id) as Record<string, unknown> | undefined;
   const changed = Object.entries(change).some(([k, v]) => current?.[k] !== v);
   if (!changed) {
@@ -69,33 +77,41 @@ function refresh() {
 function select(id: string | null) {
   selectedId = id;
   const a = selected();
-  if (a) {
-    color = a.color;
-    size = a.size;
-    if (a.kind === "text") boxed = a.boxed;
-  }
+  if (a) style = { ...style, ...styleFor(a.kind, a as Partial<Style>) };
   refresh();
 }
 
 function setTool(next: Tool) {
   tool = next;
   stageEl.className = `tool-${tool}`;
+  updateArrowTemplate();
   updateToolbar();
 }
 
 /** Applies a style change to the defaults and to the selected annotation. */
-function setStyle(change: { color?: string; size?: Size; boxed?: boolean }) {
-  color = change.color ?? color;
-  size = change.size ?? size;
-  boxed = change.boxed ?? boxed;
+function setStyle(change: Partial<Style>) {
+  style = { ...style, ...change };
+  updateArrowTemplate();
 
   const a = selected();
-  if (a) {
-    const { boxed: newBoxed, ...common } = change;
-    update(a.id, a.kind === "text" && newBoxed !== undefined ? { ...common, boxed: newBoxed } : common);
+  const relevant = a ? styleFor(a.kind, change) : {};
+  if (a && Object.keys(relevant).length > 0) {
+    update(a.id, relevant);
   } else {
     updateToolbar();
   }
+}
+
+function updateArrowTemplate() {
+  canvas.arrowTemplate =
+    tool === "arrow"
+      ? { color: style.color, size: style.size, heads: style.heads, headStyle: style.headStyle }
+      : null;
+}
+
+/** Kind whose options the toolbar shows: the selection, else the tool. */
+function contextKind(): Kind | "none" {
+  return selected()?.kind ?? (tool === "select" ? "none" : tool);
 }
 
 function deleteSelected() {
@@ -116,6 +132,7 @@ function redo() {
 // --------------------------------------------------------------- canvas ---
 
 function onBackgroundClick(p: Point) {
+  const { color, size } = style;
   if (tool === "marker") {
     commit([
       ...annotations(),
@@ -123,10 +140,53 @@ function onBackgroundClick(p: Point) {
     ]);
   } else if (tool === "text") {
     if (selectedId) select(null);
-    startEditing({ kind: "text", id: newId(), x: p.x, y: p.y, color, size, boxed, text: "" }, true);
-  } else {
+    startEditing({ kind: "text", id: newId(), x: p.x, y: p.y, color, size, boxed: style.boxed, text: "" }, true);
+  } else if (tool === "magnifier") {
+    const id = newId();
+    selectedId = id;
+    commit([
+      ...annotations(),
+      {
+        kind: "magnifier",
+        id,
+        x: p.x,
+        y: p.y,
+        color: MAGNIFIER_COLOR,
+        size,
+        radius: defaultMagnifierRadius(canvas.pixelRatio),
+        zoom: style.zoom,
+        blurOutside: style.blurOutside,
+      },
+    ]);
+  } else if (tool === "select") {
     select(null);
   }
+  // Arrow tool: arrows are created by dragging (onDrawArrow).
+}
+
+function onDrawArrow(start: Point, end: Point) {
+  const id = newId();
+  selectedId = id;
+  commit([
+    ...annotations(),
+    {
+      kind: "arrow",
+      id,
+      x: start.x,
+      y: start.y,
+      x2: end.x,
+      y2: end.y,
+      color: style.color,
+      size: style.size,
+      heads: style.heads,
+      headStyle: style.headStyle,
+    },
+  ]);
+}
+
+function onTranslate(id: string, dx: number, dy: number) {
+  if (dx === 0 && dy === 0) return;
+  commit(annotations().map((a) => (a.id === id ? translate(a, dx, dy) : a)));
 }
 
 function onEditText(id: string) {
@@ -289,8 +349,20 @@ function buildToolbar() {
   document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ size: b.dataset.size as Size })),
   );
+  document.querySelectorAll<HTMLButtonElement>("[data-heads]").forEach((b) =>
+    b.addEventListener("click", () => setStyle({ heads: b.dataset.heads as HeadPosition })),
+  );
+  document.querySelectorAll<HTMLButtonElement>("[data-head-style]").forEach((b) =>
+    b.addEventListener("click", () => setStyle({ headStyle: b.dataset.headStyle as HeadStyle })),
+  );
+  document.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach((b) =>
+    b.addEventListener("click", () => setStyle({ zoom: Number(b.dataset.zoom) })),
+  );
   $<HTMLInputElement>("#boxed").addEventListener("change", (e) =>
     setStyle({ boxed: (e.target as HTMLInputElement).checked }),
+  );
+  $<HTMLInputElement>("#blur-outside").addEventListener("change", (e) =>
+    setStyle({ blurOutside: (e.target as HTMLInputElement).checked }),
   );
   $("#undo").addEventListener("click", undo);
   $("#redo").addEventListener("click", redo);
@@ -315,11 +387,43 @@ function updateToolbar() {
       el.setAttribute("aria-checked", String(isOn(el)));
     });
   check("[data-tool]", (el) => el.dataset.tool === tool);
-  check("[data-color]", (el) => el.dataset.color === color);
-  check("[data-size]", (el) => el.dataset.size === size);
-  $<HTMLInputElement>("#boxed").checked = boxed;
+  check("[data-color]", (el) => el.dataset.color === style.color);
+  check("[data-size]", (el) => el.dataset.size === style.size);
+  check("[data-heads]", (el) => el.dataset.heads === style.heads);
+  check("[data-head-style]", (el) => el.dataset.headStyle === style.headStyle);
+  check("[data-zoom]", (el) => Number(el.dataset.zoom) === style.zoom);
+  $<HTMLInputElement>("#boxed").checked = style.boxed;
+  $<HTMLInputElement>("#blur-outside").checked = style.blurOutside;
+
+  const kind = contextKind();
+  document.querySelectorAll<HTMLElement>("[data-for]").forEach((el) => {
+    el.hidden = !el.dataset.for!.split(" ").includes(kind);
+  });
   $<HTMLButtonElement>("#undo").disabled = !history.canUndo;
   $<HTMLButtonElement>("#redo").disabled = !history.canRedo;
+}
+
+/**
+ * Widens the window so the toolbar fits for every tool, and makes that the
+ * minimum width. The toolbar's options vary by tool, so measure each variant.
+ */
+async function fitWindowToToolbar() {
+  const toolbar = $<HTMLElement>("#toolbar");
+  const contextual = [...document.querySelectorAll<HTMLElement>("[data-for]")];
+  const kinds = new Set(contextual.flatMap((el) => el.dataset.for!.split(" ")));
+
+  let needed = 0;
+  for (const kind of kinds) {
+    for (const el of contextual) el.hidden = !el.dataset.for!.split(" ").includes(kind);
+    needed = Math.max(needed, toolbar.scrollWidth);
+  }
+  updateToolbar();
+
+  const win = getCurrentWindow();
+  await win.setMinSize(new LogicalSize(needed, MIN_WINDOW_HEIGHT));
+  if (window.innerWidth < needed) {
+    await win.setSize(new LogicalSize(needed, window.innerHeight));
+  }
 }
 
 // ------------------------------------------------------------- keyboard ---
@@ -355,6 +459,10 @@ window.addEventListener("keydown", (e) => {
     setTool("marker");
   } else if (key === "t") {
     setTool("text");
+  } else if (key === "a") {
+    setTool("arrow");
+  } else if (key === "l") {
+    setTool("magnifier");
   } else if (key === "enter" && selected()?.kind === "text") {
     onEditText(selectedId!);
   }
@@ -372,14 +480,17 @@ async function init() {
   canvas = new AnnotationCanvas(stageEl, image, window.devicePixelRatio, {
     onBackgroundClick,
     onSelect: select,
-    onMove: (id, x, y) => update(id, { x, y }),
+    onTranslate,
+    onUpdate: update,
     onEditText,
+    onDrawArrow,
   });
 
   buildToolbar();
   setTool(tool);
   layout();
   refresh();
+  await fitWindowToToolbar();
   window.addEventListener("resize", () => {
     finishEditing();
     layout();

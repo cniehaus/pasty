@@ -1,6 +1,19 @@
 // Annotation data model. All coordinates and sizes are in image pixels.
 
 export type Size = "s" | "m" | "l";
+export type HeadPosition = "end" | "start" | "both" | "none";
+export type HeadStyle = "filled" | "open" | "dot";
+
+/** Current tool settings; each annotation kind uses a subset. */
+export interface Style {
+  color: string;
+  size: Size;
+  boxed: boolean;
+  heads: HeadPosition;
+  headStyle: HeadStyle;
+  zoom: number;
+  blurOutside: boolean;
+}
 
 interface Base {
   id: string;
@@ -23,7 +36,33 @@ export interface TextNote extends Base {
   boxed: boolean;
 }
 
-export type Annotation = Marker | TextNote;
+/** Arrow or line from (x, y) to (x2, y2). */
+export interface Arrow extends Base {
+  kind: "arrow";
+  x2: number;
+  y2: number;
+  heads: HeadPosition;
+  headStyle: HeadStyle;
+}
+
+/** Circular lens magnifying what lies beneath its centre (x, y). */
+export interface Magnifier extends Base {
+  kind: "magnifier";
+  radius: number;
+  zoom: number;
+  blurOutside: boolean;
+}
+
+export type Annotation = Marker | TextNote | Arrow | Magnifier;
+export type Kind = Annotation["kind"];
+
+/** Style properties that apply to each kind. */
+export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
+  marker: ["color", "size"],
+  text: ["color", "size", "boxed"],
+  arrow: ["color", "size", "heads", "headStyle"],
+  magnifier: ["size", "zoom", "blurOutside"],
+};
 
 export const COLORS = [
   { value: "#e53935", name: "Rot" },
@@ -34,9 +73,25 @@ export const COLORS = [
   { value: "#212121", name: "Schwarz" },
 ] as const;
 
-/** Sizes in logical points; multiplied by the image's pixel ratio. */
+export const ZOOM_LEVELS = [1.5, 2, 3] as const;
+
+export const DEFAULT_STYLE: Style = {
+  color: COLORS[0].value,
+  size: "m",
+  boxed: false,
+  heads: "end",
+  headStyle: "filled",
+  zoom: 2,
+  blurOutside: false,
+};
+
+export const MAGNIFIER_COLOR = "#ffffff";
+
+// Sizes in logical points; multiplied by the image's pixel ratio.
 const MARKER_RADIUS: Record<Size, number> = { s: 11, m: 15, l: 20 };
 const FONT_SIZE: Record<Size, number> = { s: 14, m: 20, l: 28 };
+const STROKE_WIDTH: Record<Size, number> = { s: 2.5, m: 4, l: 6 };
+const MAGNIFIER_RADIUS = 90;
 
 export function markerRadius(size: Size, pixelRatio: number): number {
   return MARKER_RADIUS[size] * pixelRatio;
@@ -44,6 +99,28 @@ export function markerRadius(size: Size, pixelRatio: number): number {
 
 export function fontSize(size: Size, pixelRatio: number): number {
   return FONT_SIZE[size] * pixelRatio;
+}
+
+export function strokeWidth(size: Size, pixelRatio: number): number {
+  return STROKE_WIDTH[size] * pixelRatio;
+}
+
+export function defaultMagnifierRadius(pixelRatio: number): number {
+  return MAGNIFIER_RADIUS * pixelRatio;
+}
+
+/** Copies the style properties relevant for `kind`. */
+export function styleFor(kind: Kind, style: Partial<Style>): Partial<Style> {
+  const result: Partial<Style> = {};
+  for (const key of STYLE_KEYS[kind]) {
+    if (style[key] !== undefined) (result as Record<string, unknown>)[key] = style[key];
+  }
+  return result;
+}
+
+export function translate(a: Annotation, dx: number, dy: number): Annotation {
+  const moved = { ...a, x: a.x + dx, y: a.y + dy };
+  return moved.kind === "arrow" ? { ...moved, x2: moved.x2 + dx, y2: moved.y2 + dy } : moved;
 }
 
 /** Next step number: one more than the highest existing marker. */

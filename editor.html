@@ -9,7 +9,7 @@
     <script type="module" src="/src/editor/main.ts"></script>
   </head>
   <body>
-    <header class="toolbar">
+    <header class="toolbar" id="toolbar">
       <div class="group" role="radiogroup" aria-label="Werkzeug">
         <button class="tool" data-tool="select" title="Auswählen (V)" aria-label="Auswählen">
           <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" /></svg>
@@ -23,13 +23,20 @@
         <button class="tool" data-tool="text" title="Text (T)" aria-label="Text">
           <svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6" /></svg>
         </button>
+        <button class="tool" data-tool="arrow" title="Pfeil (A)" aria-label="Pfeil">
+          <svg viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9" /></svg>
+        </button>
+        <button class="tool" data-tool="magnifier" title="Lupe (L)" aria-label="Lupe">
+          <svg viewBox="0 0 24 24">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="M15.5 15.5L20 20M8 10.5h5M10.5 8v5" />
+          </svg>
+        </button>
       </div>
 
       <div class="separator"></div>
 
-      <div class="group" id="colors" role="radiogroup" aria-label="Farbe"></div>
-
-      <div class="separator"></div>
+      <div class="group" id="colors" role="radiogroup" aria-label="Farbe" data-for="none marker text arrow"></div>
 
       <div class="group segmented" role="radiogroup" aria-label="Größe">
         <button data-size="s" title="Klein">S</button>
@@ -37,9 +44,47 @@
         <button data-size="l" title="Groß">L</button>
       </div>
 
-      <label class="toggle" title="Text mit weißem Kasten hinterlegen">
+      <label class="toggle" data-for="text" title="Text mit weißem Kasten hinterlegen">
         <input type="checkbox" id="boxed" />
         Kasten
+      </label>
+
+      <div class="group segmented" role="radiogroup" aria-label="Pfeilspitzen" data-for="arrow">
+        <button data-heads="end" title="Spitze am Ende" aria-label="Spitze am Ende">
+          <svg viewBox="0 0 24 24"><path d="M4 12h15M15 8l4 4-4 4" /></svg>
+        </button>
+        <button data-heads="start" title="Spitze am Anfang" aria-label="Spitze am Anfang">
+          <svg viewBox="0 0 24 24"><path d="M5 12h15M9 8l-4 4 4 4" /></svg>
+        </button>
+        <button data-heads="both" title="Spitzen an beiden Enden" aria-label="Spitzen an beiden Enden">
+          <svg viewBox="0 0 24 24"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg>
+        </button>
+        <button data-heads="none" title="Keine Spitze (Linie)" aria-label="Keine Spitze">
+          <svg viewBox="0 0 24 24"><path d="M4 12h16" /></svg>
+        </button>
+      </div>
+
+      <div class="group segmented" role="radiogroup" aria-label="Form der Spitze" data-for="arrow">
+        <button data-head-style="filled" title="Gefülltes Dreieck" aria-label="Gefülltes Dreieck">
+          <svg viewBox="0 0 24 24"><path d="M4 12h9" /><path class="fill" d="M13 7l7 5-7 5z" /></svg>
+        </button>
+        <button data-head-style="open" title="Offene Spitze" aria-label="Offene Spitze">
+          <svg viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5" /></svg>
+        </button>
+        <button data-head-style="dot" title="Punkt" aria-label="Punkt">
+          <svg viewBox="0 0 24 24"><path d="M4 12h11" /><circle class="fill" cx="17" cy="12" r="3.5" /></svg>
+        </button>
+      </div>
+
+      <div class="group segmented" role="radiogroup" aria-label="Vergrößerung" data-for="magnifier">
+        <button data-zoom="1.5" title="1,5-fach">1,5×</button>
+        <button data-zoom="2" title="2-fach">2×</button>
+        <button data-zoom="3" title="3-fach">3×</button>
+      </div>
+
+      <label class="toggle" data-for="magnifier" title="Alles außerhalb der Lupe unscharf darstellen">
+        <input type="checkbox" id="blur-outside" />
+        Rest unscharf
       </label>
 
       <div class="spacer"></div>

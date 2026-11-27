@@ -49,6 +49,13 @@ body {
   border-bottom: 1px solid var(--toolbar-border);
   flex-shrink: 0;
   overflow-x: auto;
+  white-space: nowrap;
+}
+
+.group,
+.separator,
+.toggle {
+  flex-shrink: 0;
 }
 
 .group {
@@ -88,6 +95,14 @@ button:hover:not(:disabled) {
 
 button:disabled {
   opacity: 0.35;
+}
+
+button svg .fill {
+  fill: currentColor;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 button[aria-checked="true"] {
@@ -166,7 +181,9 @@ button svg {
 }
 
 #stage.tool-marker,
-#stage.tool-text {
+#stage.tool-text,
+#stage.tool-arrow,
+#stage.tool-magnifier {
   cursor: crosshair;
 }
 
