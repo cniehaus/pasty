@@ -9,40 +9,75 @@
 //! 3. The page calls `finish_selection` or `cancel_selection`.
 
 use std::{
-    sync::atomic::{AtomicBool, Ordering},
-    time::Instant,
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    time::{Duration, Instant},
 };
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::{
     capture::{self, MonitorBounds, Region},
-    editor,
+    editor, notice,
     store::{FrozenScreen, ImageStore},
 };
 
 const LABEL: &str = "overlay";
+/// If the overlay page hasn't reported ready by then, give up and reset.
+const READY_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Set while a capture is in progress, so that repeated shortcut presses
-/// don't start a second one.
 #[derive(Default)]
 pub struct OverlayState {
+    /// Set while a capture is in progress, so that repeated shortcut
+    /// presses don't start a second one.
     busy: AtomicBool,
+    /// Counts captures, so a late watchdog can't close a newer overlay.
+    generation: AtomicU64,
 }
 
 pub fn start(app: &AppHandle) {
-    let state = app.state::<OverlayState>();
-    if state.busy.swap(true, Ordering::AcqRel) {
+    if !notice::screen_capture_allowed() {
+        notice::request_screen_capture(app);
         return;
     }
+
+    let state = app.state::<OverlayState>();
+    if state.busy.swap(true, Ordering::AcqRel) {
+        log::info!("capture already in progress");
+        return;
+    }
+    let generation = state.generation.fetch_add(1, Ordering::AcqRel) + 1;
 
     let app = app.clone();
     std::thread::spawn(move || {
         if let Err(e) = freeze_and_open(&app) {
-            eprintln!("[pasta] capture failed: {e}");
             close(&app);
+            notice::error(&app, "Aufnahme fehlgeschlagen", &e);
+            return;
         }
+        std::thread::sleep(READY_TIMEOUT);
+        watchdog(&app, generation);
     });
+}
+
+/// Resets a capture whose overlay never became visible, so that Pasta
+/// doesn't stay blocked.
+fn watchdog(app: &AppHandle, generation: u64) {
+    let current = app
+        .state::<OverlayState>()
+        .generation
+        .load(Ordering::Acquire);
+    let stuck = current == generation
+        && app
+            .get_webview_window(LABEL)
+            .is_some_and(|w| !w.is_visible().unwrap_or(false));
+    if stuck {
+        close(app);
+        notice::error(
+            app,
+            "Auswahl konnte nicht angezeigt werden",
+            "Das Auswahlfenster ist nicht erschienen. Bitte noch einmal versuchen.",
+        );
+    }
 }
 
 fn freeze_and_open(app: &AppHandle) -> Result<(), String> {
@@ -50,8 +85,8 @@ fn freeze_and_open(app: &AppHandle) -> Result<(), String> {
     let snapshot = capture::snapshot_monitor_under_cursor(app)?;
     let captured = started.elapsed();
     let png = capture::encode_png(&snapshot.image)?;
-    println!(
-        "[pasta] frozen {}x{} px (capture {captured:?}, encode {:?})",
+    log::info!(
+        "frozen {}x{} px (capture {captured:?}, encode {:?})",
         snapshot.image.width(),
         snapshot.image.height(),
         started.elapsed() - captured
@@ -135,6 +170,7 @@ fn close(app: &AppHandle) {
 
 #[tauri::command]
 pub async fn overlay_ready(window: WebviewWindow) -> Result<(), String> {
+    log::info!("overlay ready");
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())
 }

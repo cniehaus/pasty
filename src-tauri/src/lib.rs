@@ -9,6 +9,7 @@
 mod capture;
 mod editor;
 mod export;
+mod notice;
 mod overlay;
 mod store;
 
@@ -18,7 +19,7 @@ use tauri::{
     AppHandle, Manager, RunEvent,
     http::{Response, StatusCode, header},
     image::Image,
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -85,6 +86,13 @@ fn tray_icon(app: &AppHandle) -> tauri::Result<(Image<'static>, bool)> {
     Ok((icon, false))
 }
 
+fn open_log_dir(app: &AppHandle) {
+    match app.path().app_log_dir() {
+        Ok(dir) => notice::open_url(&dir.to_string_lossy()),
+        Err(e) => log::error!("no log dir: {e}"),
+    }
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let capture = MenuItem::with_id(
         app,
@@ -93,8 +101,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+Shift+2"), // display hint only
     )?;
+    let logs = MenuItem::with_id(app, "logs", "Protokoll öffnen", true, None::<&str>)?;
+    let restart = MenuItem::with_id(app, "restart", "Pasta neu starten", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Pasta beenden", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&capture, &quit])?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&capture, &separator, &logs, &restart, &quit])?;
 
     let (icon, is_template) = tray_icon(app)?;
     TrayIconBuilder::with_id("pasta-tray")
@@ -105,6 +116,8 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => start_capture(app),
+            "logs" => open_log_dir(app),
+            "restart" => app.restart(),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -128,6 +141,11 @@ pub fn run() {
             export::copy_png,
             export::save_png,
         ])
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -143,21 +161,40 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            log::info!("Pasta {} started", app.package_info().version);
             build_tray(app.handle())?;
-            app.global_shortcut().register(capture_shortcut())?;
+            if let Err(e) = app.global_shortcut().register(capture_shortcut()) {
+                // Another app may own the shortcut; the tray menu still works.
+                notice::error(
+                    app.handle(),
+                    "Tastenkürzel nicht verfügbar",
+                    &format!("Das Kürzel für „Bereich aufnehmen“ ist bereits belegt ({e}). Die Aufnahme geht weiterhin über das Menüleisten-Symbol."),
+                );
+            }
+            if !notice::screen_capture_allowed() {
+                notice::request_screen_capture(app.handle());
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("failed to build Pasta");
 
-    app.run(|_app, event| {
+    app.run(|app, event| match event {
         // Keep running in the background when the last window (e.g. the
         // editor) is closed. Only an explicit exit (tray "quit") ends the app.
-        if let RunEvent::ExitRequested {
+        RunEvent::ExitRequested {
             api, code: None, ..
-        } = event
-        {
-            api.prevent_exit();
-        }
+        } => api.prevent_exit(),
+        // Opening Pasta again while it runs: point to the menu bar icon.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } => notice::info(
+            app,
+            "Pasta läuft bereits",
+            "Pasta findest du oben rechts in der Menüleiste (Ravioli-Symbol).\n\nBereich aufnehmen: ⌘⇧2",
+        ),
+        _ => {}
     });
 }

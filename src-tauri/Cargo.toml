@@ -28,6 +28,8 @@ xcap = "0.9.10"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 arboard = { version = "3.7.0", default-features = false, features = ["image-data"] }
 tauri-plugin-dialog = "2.8.4"
+log = "0.4.35"
+tauri-plugin-log = "2.10.2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -39,9 +41,10 @@ panic = "abort"
 strip = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSResponder", "NSGraphics"] }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSResponder", "NSGraphics", "NSApplication", "NSRunningApplication"] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
-objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes", "CGWindow"] }
 
 # Optimise dependencies (image encoding, capture) even in debug builds;
 # unoptimised PNG encoding of a Retina screenshot takes seconds.
