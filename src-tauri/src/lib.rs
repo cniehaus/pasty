@@ -80,7 +80,8 @@ fn tray_icon(app: &AppHandle) -> tauri::Result<(Image<'static>, bool)> {
     let icon = app
         .default_window_icon()
         .cloned()
-        .expect("app icon missing");
+        .expect("app icon missing")
+        .to_owned();
     Ok((icon, false))
 }
 
