@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pasta – Bildschirmfotos einfach beschriften</title>
+    <meta
+      name="description"
+      content="Pasta nimmt Bildschirmfotos auf und beschriftet sie mit Nummern, Pfeilen, Text und Textmarker – für Anleitungen per E-Mail. Kostenlos, für Mac und Windows, alles bleibt auf Ihrem Rechner."
+    />
+    <link rel="icon" href="logo.svg" type="image/svg+xml" />
+    <style>
+      /* Palette from the app icon: basil green, pasta yellow, tomato red. */
+      :root {
+        --bg: #fbfaf7;
+        --surface: #ffffff;
+        --text: #1f2420;
+        --muted: #5d665f;
+        --line: #e3e1da;
+        --basil: #2f7d4a;
+        --basil-dark: #22663b;
+        --pasta: #f6cf68;
+        --tomato: #d6452a;
+        --shadow: 0 10px 30px rgb(30 40 30 / 0.1);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --radius: 14px;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161917;
+          --surface: #1f2420;
+          --text: #edf0ec;
+          --muted: #a4ada6;
+          --line: #2f3631;
+          --basil: #5fb37b;
+          --basil-dark: #4c9a66;
+          --shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+          color-scheme: dark;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 17px;
+        line-height: 1.6;
+      }
+      a {
+        color: var(--basil);
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 3px solid var(--pasta);
+        outline-offset: 2px;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding-inline: max(20px, env(safe-area-inset-left, 0px));
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: clamp(26px, 3.4vw, 34px);
+        margin: 0 0 8px;
+      }
+      .section {
+        padding-block: 64px;
+      }
+      .section + .section {
+        border-top: 1px solid var(--line);
+      }
+      .intro {
+        color: var(--muted);
+        max-width: 62ch;
+        margin: 0 0 32px;
+      }
+
+      /* Header */
+      header.top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+      }
+      header.top .wrap {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        height: 60px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 20px;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .brand img {
+        width: 34px;
+        height: 34px;
+      }
+      nav.links {
+        margin-left: auto;
+        display: flex;
+        gap: 20px;
+        font-size: 15px;
+      }
+      nav.links a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav.links a:hover {
+        color: var(--text);
+      }
+      @media (max-width: 720px) {
+        nav.links {
+          display: none;
+        }
+      }
+
+      /* Hero */
+      .hero {
+        padding-block: 56px 40px;
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: 48px;
+        align-items: center;
+      }
+      @media (max-width: 860px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+      }
+      .hero h1 {
+        font-size: clamp(36px, 5.4vw, 56px);
+        margin: 0 0 16px;
+        letter-spacing: -0.01em;
+      }
+      .hero h1 em {
+        font-style: normal;
+        color: var(--basil);
+      }
+      .hero p.lead {
+        font-size: 19px;
+        color: var(--muted);
+        margin: 0 0 28px;
+        max-width: 48ch;
+      }
+      .downloads {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 16px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        color: var(--text);
+        background: var(--surface);
+      }
+      .btn.primary {
+        background: var(--basil);
+        border-color: var(--basil);
+        color: #fff;
+      }
+      .btn.primary:hover {
+        background: var(--basil-dark);
+      }
+      .btn svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+      .btn small {
+        font-weight: 400;
+        opacity: 0.85;
+      }
+      .meta {
+        margin-top: 14px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .illustration {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        filter: drop-shadow(0 18px 36px rgb(30 40 30 / 0.18));
+      }
+
+      /* Steps */
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        counter-reset: step;
+      }
+      @media (max-width: 860px) {
+        .steps {
+          grid-template-columns: 1fr;
+        }
+      }
+      .step {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+      .step .num {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--tomato);
+        color: #fff;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        border: 3px solid #fff;
+        box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+        margin-bottom: 12px;
+      }
+      .step h3 {
+        margin: 0 0 6px;
+        font-size: 19px;
+      }
+      .step p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      /* Features */
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .feature {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 14px;
+        align-items: start;
+        padding: 18px;
+        border-radius: var(--radius);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        min-width: 0;
+      }
+      .feature .icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: color-mix(in srgb, var(--basil) 14%, transparent);
+        color: var(--basil);
+      }
+      .feature .icon svg {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .feature h3 {
+        margin: 2px 0 4px;
+        font-size: 17px;
+      }
+      .feature p {
+        margin: 0;
+        font-size: 15px;
+        color: var(--muted);
+      }
+
+      /* Privacy */
+      .privacy {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 28px;
+        align-items: center;
+        background: color-mix(in srgb, var(--basil) 9%, var(--surface));
+        border: 1px solid color-mix(in srgb, var(--basil) 30%, var(--line));
+        border-radius: var(--radius);
+        padding: 32px;
+      }
+      @media (max-width: 720px) {
+        .privacy {
+          grid-template-columns: 1fr;
+        }
+      }
+      .privacy .shield {
+        width: 72px;
+        height: 72px;
+        color: var(--basil);
+      }
+      .privacy ul {
+        margin: 12px 0 0;
+        padding-left: 20px;
+      }
+
+      /* Install */
+      .install {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      @media (max-width: 860px) {
+        .install {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 26px;
+        min-width: 0;
+      }
+      .card h3 {
+        margin: 0 0 4px;
+        font-size: 21px;
+      }
+      .card .req {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .card ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .card li + li {
+        margin-top: 8px;
+      }
+      .note {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: 15px;
+        background: color-mix(in srgb, var(--pasta) 30%, var(--surface));
+      }
+
+      /* Shortcuts */
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 520px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      th {
+        font-size: 14px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      kbd {
+        font-family: inherit;
+        font-size: 14px;
+        padding: 1px 7px;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 6px;
+        background: var(--bg);
+        white-space: nowrap;
+      }
+
+      /* FAQ */
+      details {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+      }
+      details + details {
+        margin-top: 10px;
+      }
+      summary {
+        font-weight: 600;
+        cursor: pointer;
+      }
+      details p {
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      footer {
+        padding-block: 36px 48px;
+        color: var(--muted);
+        font-size: 14px;
+        border-top: 1px solid var(--line);
+      }
+      footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="#"><img src="logo.svg" alt="" />Pasta</a>
+        <nav class="links" aria-label="Seitenbereiche">
+          <a href="#funktionen">Funktionen</a>
+          <a href="#installation">Installation</a>
+          <a href="#datenschutz">Datenschutz</a>
+          <a href="#fragen">Fragen</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="wrap hero">
+        <div>
+          <h1>Bildschirmfotos <em>einfach beschriften</em>.</h1>
+          <p class="lead">
+            Pasta macht aus einem Bildschirmfoto in Sekunden eine verständliche Anleitung: Schritte
+            nummerieren, Pfeile setzen, Wichtiges markieren, Persönliches unkenntlich machen – und
+            direkt in die E-Mail einfügen.
+          </p>
+          <div class="downloads">
+            <a class="btn primary" id="dl-mac" href="https://github.com/cniehaus/pasty/releases">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M16.4 12.6c0-2.5 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.7.9-.8 0-2-.9-3.2-.8-1.7 0-3.2 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.1-1.2 2.9-2.4.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.3-.9-2.3-3.9zM14 5.3c.7-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.5 2.8-1.3z"
+                />
+              </svg>
+              <span>Für Mac laden <small>(Apple-Chip)</small></span>
+            </a>
+            <a class="btn" id="dl-win" href="https://github.com/cniehaus/pasty/releases">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M3 5.5l7.4-1v7H3zM11.3 4.3 21 3v8.5h-9.7zM3 12.5h7.4v7L3 18.5zM11.3 12.5H21V21l-9.7-1.3z" />
+              </svg>
+              <span>Für Windows laden</span>
+            </a>
+          </div>
+          <p class="meta" id="version-info">Kostenlos · Mac (ab macOS 26) und Windows 11 · Vorabversion</p>
+        </div>
+
+        <!-- Illustration: an annotated screenshot in a mail window -->
+        <svg class="illustration" viewBox="0 0 560 420" role="img" aria-label="Beispiel: beschriftetes Bildschirmfoto mit Nummern, Pfeil, Textmarker und unkenntlich gemachtem Namen">
+          <defs>
+            <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3" />
+            </filter>
+            <pattern id="pixels" width="12" height="12" patternUnits="userSpaceOnUse">
+              <rect width="12" height="12" fill="#b9c0c9" />
+              <rect width="6" height="6" fill="#9aa3ae" />
+              <rect x="6" y="6" width="6" height="6" fill="#cfd5dc" />
+            </pattern>
+          </defs>
+          <rect x="10" y="10" width="540" height="400" rx="16" fill="#ffffff" />
+          <rect x="10" y="10" width="540" height="44" rx="16" fill="#eef0f2" />
+          <rect x="10" y="40" width="540" height="14" fill="#eef0f2" />
+          <circle cx="36" cy="32" r="6" fill="#ff5f57" />
+          <circle cx="56" cy="32" r="6" fill="#febc2e" />
+          <circle cx="76" cy="32" r="6" fill="#28c840" />
+          <rect x="190" y="24" width="180" height="16" rx="8" fill="#dfe2e6" />
+          <!-- sidebar -->
+          <rect x="10" y="54" width="130" height="356" fill="#f6f7f8" />
+          <rect x="28" y="80" width="90" height="12" rx="6" fill="#d5d9de" />
+          <rect x="28" y="110" width="76" height="12" rx="6" fill="#d5d9de" />
+          <rect x="22" y="134" width="106" height="28" rx="7" fill="#dbe8fb" />
+          <rect x="30" y="142" width="80" height="12" rx="6" fill="#7aa4e6" />
+          <rect x="28" y="178" width="84" height="12" rx="6" fill="#d5d9de" />
+          <rect x="28" y="206" width="70" height="12" rx="6" fill="#d5d9de" />
+          <!-- content -->
+          <rect x="166" y="78" width="200" height="18" rx="6" fill="#2b3442" />
+          <rect x="166" y="116" width="120" height="12" rx="6" fill="#8b95a3" />
+          <rect x="300" y="110" width="220" height="26" rx="6" fill="#fff" stroke="#cfd5dc" />
+          <rect x="166" y="160" width="120" height="12" rx="6" fill="#8b95a3" />
+          <rect x="300" y="154" width="220" height="26" rx="6" fill="url(#pixels)" />
+          <!-- highlighted line -->
+          <rect x="160" y="196" width="364" height="34" rx="4" fill="#ffeb3b" style="mix-blend-mode: multiply" />
+          <rect x="166" y="206" width="150" height="12" rx="6" fill="#4a5361" />
+          <rect x="330" y="206" width="150" height="12" rx="6" fill="#4a5361" />
+          <rect x="166" y="252" width="120" height="12" rx="6" fill="#8b95a3" />
+          <rect x="300" y="246" width="110" height="30" rx="7" fill="#2f6fde" />
+          <rect x="318" y="256" width="74" height="10" rx="5" fill="#fff" />
+          <rect x="166" y="300" width="330" height="10" rx="5" fill="#d5d9de" />
+          <rect x="166" y="322" width="290" height="10" rx="5" fill="#d5d9de" />
+          <!-- frame + arrow -->
+          <rect x="292" y="240" width="126" height="42" rx="8" fill="none" stroke="#d6452a" stroke-width="4" />
+          <path d="M500 372 L432 290" stroke="#d6452a" stroke-width="9" stroke-linecap="round" />
+          <path d="M422 278 L452 290 L434 306 Z" fill="#d6452a" stroke="#d6452a" stroke-width="6" stroke-linejoin="round" />
+          <!-- step markers -->
+          <g filter="url(#soft)" font-family="-apple-system, Segoe UI, sans-serif" font-weight="700" font-size="20" text-anchor="middle" fill="#fff">
+            <circle cx="140" cy="148" r="18" fill="#d6452a" stroke="#fff" stroke-width="3" />
+            <text x="140" y="155">1</text>
+            <circle cx="150" cy="213" r="18" fill="#d6452a" stroke="#fff" stroke-width="3" />
+            <text x="150" y="220">2</text>
+            <circle cx="292" cy="240" r="18" fill="#d6452a" stroke="#fff" stroke-width="3" />
+            <text x="292" y="247">3</text>
+          </g>
+          <!-- text note -->
+          <g filter="url(#soft)">
+            <rect x="372" y="352" width="168" height="40" rx="9" fill="#fff" stroke="#d6452a" stroke-width="2.5" />
+            <text x="456" y="378" text-anchor="middle" font-family="-apple-system, Segoe UI, sans-serif" font-size="16" font-weight="600" fill="#d6452a">Hier klicken!</text>
+          </g>
+        </svg>
+      </section>
+
+      <section class="section" id="so-gehts">
+        <div class="wrap">
+          <h2>So einfach geht's</h2>
+          <p class="intro">Ohne Umweg über Dateien, Programme wechseln oder Hochladen.</p>
+          <div class="steps">
+            <div class="step">
+              <div class="num">1</div>
+              <h3>Aufnehmen</h3>
+              <p>
+                <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>2</kbd> drücken (Windows: <kbd>Strg</kbd> <kbd>Umschalt</kbd>
+                <kbd>2</kbd>) und den gewünschten Bereich aufziehen – oder ein Fenster anklicken.
+              </p>
+            </div>
+            <div class="step">
+              <div class="num">2</div>
+              <h3>Beschriften</h3>
+              <p>Nummern für die Schritte setzen, Pfeile und Text ergänzen, Wichtiges gelb markieren.</p>
+            </div>
+            <div class="step">
+              <div class="num">3</div>
+              <h3>Einfügen</h3>
+              <p>
+                <kbd>⌘</kbd> <kbd>C</kbd> (Windows: <kbd>Strg</kbd> <kbd>C</kbd>) – und das fertige Bild in
+                Outlook, Thunderbird oder Apple Mail einfügen.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="funktionen">
+        <div class="wrap">
+          <h2>Was Pasta kann</h2>
+          <p class="intro">Genau die Werkzeuge, die man für Anleitungen und Rückfragen braucht – nicht mehr.</p>
+          <div class="features">
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M10.5 9l2-1.5V16" /></svg></div>
+              <div><h3>Schritte nummerieren</h3><p>1, 2, 3 oder A, B, C – zählt automatisch weiter, auf Wunsch mit Zeigerlinie.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9" /></svg></div>
+              <div><h3>Pfeile und Rahmen</h3><p>Von fein bis extra groß, Rahmen und Ellipsen zum Einkreisen.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6" /></svg></div>
+              <div><h3>Text</h3><p>Mit weißem Kasten, Kontur oder farbig – immer gut lesbar, auch fett und kursiv.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><path d="M14 3l5 5-7 7H7v-5zM7 10l5 5M3 21h18" /></svg></div>
+              <div><h3>Textmarker</h3><p>Wichtiges gelb (oder grün, pink …) hervorheben – die Schrift bleibt lesbar.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 12h16M12 4v16" /></svg></div>
+              <div><h3>Unkenntlich machen</h3><p>Namen und Adressen verpixeln, weichzeichnen oder schwärzen.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L20 20M8 10.5h5M10.5 8v5" /></svg></div>
+              <div><h3>Lupe und Betonen</h3><p>Kleine Details vergrößern oder alles außer dem Wichtigen abdunkeln.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 002 2h14M2 6h14a2 2 0 012 2v14" /></svg></div>
+              <div><h3>Zuschneiden</h3><p>Auf das Wesentliche kürzen – jederzeit wieder rückgängig zu machen.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></svg></div>
+              <div><h3>Bereich, Fenster, Timer</h3><p>Bereich, einzelnes Fenster oder ganzer Bildschirm – auf Wunsch mit 3 oder 10 Sekunden Verzögerung für geöffnete Menüs.</p></div>
+            </div>
+            <div class="feature">
+              <div class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="6" rx="1" /><rect x="14" y="5" width="7" height="6" rx="1" /><rect x="3" y="14" width="7" height="6" rx="1" /><path d="M17.5 14v6M14.5 17h6" /></svg></div>
+              <div><h3>Mehrere Aufnahmen</h3><p>Die letzten 20 Bilder bleiben griffbereit – zwischen ihnen wechseln, alles bleibt beschriftet.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="datenschutz">
+        <div class="wrap">
+          <div class="privacy">
+            <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+              <path d="M8.5 12.5l2.5 2.5 4.5-5" />
+            </svg>
+            <div>
+              <h2>Alles bleibt auf Ihrem Rechner</h2>
+              <p class="intro" style="margin: 0">
+                Pasta ist für den Einsatz in Schule und Verwaltung gedacht – auch mit Bildschirmen, auf denen
+                personenbezogene Daten zu sehen sind.
+              </p>
+              <ul>
+                <li>Keine Cloud, kein Konto, keine Anmeldung.</li>
+                <li>Keine Übertragung von Bildern oder Nutzungsdaten ins Internet.</li>
+                <li>Bilder landen nur dort, wo Sie sie hinkopieren oder speichern.</li>
+                <li>Offener Quelltext: Jede und jeder kann nachprüfen, was Pasta tut.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="installation">
+        <div class="wrap">
+          <h2>Installation</h2>
+          <p class="intro">
+            Pasta ist noch eine Vorabversion und (noch) nicht von Apple bzw. Microsoft geprüft. Deshalb fragt Ihr
+            Rechner beim ersten Start einmal nach – das ist normal.
+          </p>
+          <div class="install">
+            <div class="card">
+              <h3>Mac</h3>
+              <p class="req">macOS 26 oder neuer, Mac mit Apple-Chip</p>
+              <ol>
+                <li>Die Mac-Version laden und die heruntergeladene Datei öffnen.</li>
+                <li><strong>Pasta</strong> in den Ordner <strong>Programme</strong> ziehen.</li>
+                <li>Pasta starten. Erscheint „kann nicht überprüft werden“, auf <strong>Fertig</strong> klicken.</li>
+                <li><strong>Systemeinstellungen → Datenschutz &amp; Sicherheit</strong> öffnen, ganz nach unten scrollen und bei Pasta <strong>Dennoch öffnen</strong> wählen.</li>
+                <li>Pasta bittet um die Berechtigung <strong>Bildschirmaufnahme</strong>: erlauben und Pasta neu starten (Ravioli-Symbol oben rechts → <em>Pasta neu starten</em>).</li>
+              </ol>
+              <p class="note">
+                Pasta hat kein eigenes Fenster im Dock: Sie finden es als <strong>Ravioli-Symbol oben rechts in der
+                Menüleiste</strong>.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Windows</h3>
+              <p class="req">Windows 11</p>
+              <ol>
+                <li>Die Windows-Version laden und starten.</li>
+                <li>Erscheint „Der Computer wurde durch Windows geschützt“: auf <strong>Weitere Informationen</strong> und dann <strong>Trotzdem ausführen</strong> klicken.</li>
+                <li>Der Installation folgen.</li>
+              </ol>
+              <p class="note">
+                Pasta erscheint als Symbol im <strong>Infobereich der Taskleiste</strong> (unten rechts, ggf. unter dem
+                kleinen Pfeil). Für die zentrale Verteilung durch die IT gibt es zusätzlich ein
+                <a href="https://github.com/cniehaus/pasty/releases">MSI-Paket</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="tastenkuerzel">
+        <div class="wrap">
+          <h2>Die wichtigsten Tastenkürzel</h2>
+          <p class="intro">Alles geht auch über das Pasta-Symbol in der Menüleiste bzw. Taskleiste.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Was</th><th>Mac</th><th>Windows</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Bereich oder Fenster aufnehmen</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>2</kbd></td><td><kbd>Strg</kbd> <kbd>Umschalt</kbd> <kbd>2</kbd></td></tr>
+                <tr><td>Ganzen Bildschirm aufnehmen</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>1</kbd></td><td><kbd>Strg</kbd> <kbd>Umschalt</kbd> <kbd>1</kbd></td></tr>
+                <tr><td>Fertiges Bild kopieren</td><td><kbd>⌘</kbd> <kbd>C</kbd></td><td><kbd>Strg</kbd> <kbd>C</kbd></td></tr>
+                <tr><td>Speichern (Ordner Bilder/Pasta)</td><td><kbd>⌘</kbd> <kbd>S</kbd></td><td><kbd>Strg</kbd> <kbd>S</kbd></td></tr>
+                <tr><td>Rückgängig</td><td><kbd>⌘</kbd> <kbd>Z</kbd></td><td><kbd>Strg</kbd> <kbd>Z</kbd></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="fragen">
+        <div class="wrap">
+          <h2>Häufige Fragen</h2>
+          <details>
+            <summary>Was kostet Pasta?</summary>
+            <p>Nichts. Pasta ist freie Software unter der GNU GPL 3.0 und darf kostenlos genutzt und weitergegeben werden.</p>
+          </details>
+          <details>
+            <summary>Warum warnt mein Rechner beim ersten Öffnen?</summary>
+            <p>
+              Apple und Microsoft warnen bei Programmen, die (noch) nicht mit einem kostenpflichtigen Zertifikat
+              unterschrieben sind. Pasta ist eine Vorabversion – die Warnung bedeutet nicht, dass etwas nicht stimmt.
+            </p>
+          </details>
+          <details>
+            <summary>Nach einem Update geht die Aufnahme auf dem Mac nicht mehr.</summary>
+            <p>
+              Solange Pasta nicht von Apple beglaubigt ist, gilt die Berechtigung „Bildschirmaufnahme“ nur für genau
+              eine Version. In den Systemeinstellungen unter <em>Datenschutz &amp; Sicherheit → Bildschirm- &amp;
+              Systemaudioaufnahme</em> den alten Pasta-Eintrag entfernen, die neue Version erlauben und Pasta neu
+              starten.
+            </p>
+          </details>
+          <details>
+            <summary>Funktioniert das mit Outlook, Thunderbird und Apple Mail?</summary>
+            <p>Ja. Pasta legt das fertige Bild in die Zwischenablage – es lässt sich in jedes Mailprogramm einfügen, ebenso in Word, Teams oder ein Dokument.</p>
+          </details>
+          <details>
+            <summary>Wo finde ich Pasta, nachdem ich es gestartet habe?</summary>
+            <p>Pasta hat kein Hauptfenster. Auf dem Mac sitzt das Ravioli-Symbol oben rechts in der Menüleiste, unter Windows im Infobereich der Taskleiste.</p>
+          </details>
+          <details>
+            <summary>Etwas funktioniert nicht – was tun?</summary>
+            <p>
+              Im Pasta-Menü <em>Protokoll öffnen</em> wählen und die Datei zusammen mit einer kurzen Beschreibung an
+              die Person schicken, die Ihnen Pasta empfohlen hat – oder als
+              <a href="https://github.com/cniehaus/pasty/issues">Meldung auf GitHub</a> eintragen.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>Pasta · freie Software unter der GNU GPL 3.0 · © 2026 Carsten Niehaus</span>
+        <span>Für Entwicklerinnen und Entwickler: <a href="https://github.com/cniehaus/pasty">Quelltext auf GitHub</a></span>
+      </div>
+    </footer>
+
+    <script>
+      // Point the download buttons at the files of the newest release
+      // (including pre-releases). Without network or on error the buttons
+      // keep linking to the release overview.
+      (async () => {
+        try {
+          const res = await fetch("https://api.github.com/repos/cniehaus/pasty/releases?per_page=5");
+          if (!res.ok) return;
+          const releases = await res.json();
+          const latest = releases.find((r) => !r.draft && r.assets.length > 0);
+          if (!latest) return;
+          const asset = (suffix) => latest.assets.find((a) => a.name.endsWith(suffix));
+          const mac = asset(".dmg");
+          const win = asset("-setup.exe");
+          if (mac) document.getElementById("dl-mac").href = mac.browser_download_url;
+          if (win) document.getElementById("dl-win").href = win.browser_download_url;
+          const date = new Date(latest.published_at).toLocaleDateString("de-DE");
+          document.getElementById("version-info").textContent =
+            `Version ${latest.tag_name.replace(/^v/, "")} vom ${date} · kostenlos · Mac (ab macOS 26) und Windows 11 · Vorabversion`;
+        } catch {
+          /* keep the fallback links */
+        }
+      })();
+    </script>
+  </body>
+</html>

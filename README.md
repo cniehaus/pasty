@@ -19,6 +19,8 @@ Verwaltung, die schnell verständliche Anleitungen und E-Mails erstellen wollen.
 
 Alles bleibt **lokal** – keine Cloud, kein Konto, keine Telemetrie.
 
+**Webseite für Nutzerinnen und Nutzer:** https://cniehaus.github.io/pasty/
+
 ## Status
 
 🚧 In Planung. Siehe [docs/SPEC.md](docs/SPEC.md) für Projektrahmen und Roadmap.
@@ -60,6 +62,7 @@ Projektstruktur:
 | `src/` | Oberfläche in TypeScript (Auswahl-Overlay, Editor) |
 | `docs/SPEC.md` | Projektrahmen und Roadmap |
 | `docs/TODO.md` | Offene Punkte |
+| `site/` | Webseite für Nutzer (GitHub Pages, wird automatisch veröffentlicht) |
 | `assets/icon/` | Icon-Quellen als SVG; `npm run icons` erzeugt daraus alle Icon-Dateien |
 
 ## Lizenz
