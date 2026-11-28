@@ -17,9 +17,11 @@ import {
   type RedactMode,
   type Size,
   type Style,
+  type TextBackground,
   type TextNote,
   COLORS,
   CROP_RATIOS,
+  contrastColor,
   DEFAULT_STYLE,
   MAGNIFIER_COLOR,
   cropOf,
@@ -239,6 +241,15 @@ function setStyle(change: Partial<Style>) {
   style = { ...style, ...change };
   updateDraftFactory();
 
+  // While typing, the change applies to the text being edited.
+  if (editing) {
+    editing.draft = { ...editing.draft, ...styleFor("text", change) } as TextNote;
+    styleTextarea();
+    editing.textarea.focus();
+    updatePanels();
+    return;
+  }
+
   const a = selected();
   const relevant = a ? styleFor(a.kind, change) : {};
   if (a && Object.keys(relevant).length > 0) {
@@ -446,7 +457,21 @@ function onBackgroundClick(p: Point) {
     ]);
   } else if (tool === "text") {
     if (doc?.selectedId) select(null);
-    startEditing({ kind: "text", id: newId(), x: p.x, y: p.y, color, size, boxed: style.boxed, text: "" }, true);
+    startEditing(
+      {
+        kind: "text",
+        id: newId(),
+        x: p.x,
+        y: p.y,
+        color,
+        size,
+        textBackground: style.textBackground,
+        bold: style.bold,
+        italic: style.italic,
+        text: "",
+      },
+      true,
+    );
   } else if (tool === "magnifier" && doc && canvas) {
     const id = newId();
     doc.selectedId = id;
@@ -504,28 +529,9 @@ function startEditing(draft: TextNote, isNew: boolean) {
   textarea.value = draft.text;
   textarea.spellcheck = true;
   editing = { draft, isNew, textarea };
+  styleTextarea();
 
-  const scale = canvas.viewScale;
-  const origin = canvas.viewOrigin;
-  const stageRect = stageEl.getBoundingClientRect();
-  const fs = fontSize(draft.size, canvas.pixelRatio) * scale;
-  const pad = textPadding(draft, canvas.pixelRatio) * scale;
-  Object.assign(textarea.style, {
-    left: `${stageRect.left + (draft.x - origin.x) * scale - 1}px`,
-    top: `${stageRect.top + (draft.y - origin.y) * scale - 1}px`,
-    font: `${fs}px ${FONT_FAMILY}`,
-    lineHeight: String(TEXT_LINE_HEIGHT),
-    padding: `${pad}px`,
-    color: draft.color,
-    background: draft.boxed ? "#ffffff" : "",
-  });
-
-  const autosize = () => {
-    textarea.style.width = "0";
-    textarea.style.height = "0";
-    textarea.style.width = `${textarea.scrollWidth}px`;
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  };
+  const autosize = () => autosizeTextarea(textarea);
   textarea.addEventListener("input", autosize);
   textarea.addEventListener("blur", () => finishEditing());
   textarea.addEventListener("keydown", (e) => {
@@ -541,6 +547,37 @@ function startEditing(draft: TextNote, isNew: boolean) {
   autosize();
   textarea.focus();
   textarea.select();
+}
+
+/** Places and styles the text field like the text it will become. */
+function styleTextarea() {
+  if (!editing || !canvas) return;
+  const { draft, textarea } = editing;
+  const scale = canvas.viewScale;
+  const origin = canvas.viewOrigin;
+  const stageRect = stageEl.getBoundingClientRect();
+  const fs = fontSize(draft.size, canvas.pixelRatio) * scale;
+  const pad = textPadding(draft, canvas.pixelRatio) * scale;
+  Object.assign(textarea.style, {
+    left: `${stageRect.left + (draft.x - origin.x) * scale - 1}px`,
+    top: `${stageRect.top + (draft.y - origin.y) * scale - 1}px`,
+    font: `${draft.italic ? "italic " : ""}${draft.bold ? "bold " : ""}${fs}px ${FONT_FAMILY}`,
+    lineHeight: String(TEXT_LINE_HEIGHT),
+    padding: `${pad}px`,
+    color: draft.textBackground === "color" ? contrastColor(draft.color) : draft.color,
+    background:
+      draft.textBackground === "white" ? "#ffffff" : draft.textBackground === "color" ? draft.color : "",
+    // Approximates the white outline of the "halo" background.
+    textShadow: draft.textBackground === "halo" ? "0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff" : "",
+  });
+  autosizeTextarea(textarea);
+}
+
+function autosizeTextarea(textarea: HTMLTextAreaElement) {
+  textarea.style.width = "0";
+  textarea.style.height = "0";
+  textarea.style.width = `${textarea.scrollWidth}px`;
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 function finishEditing() {
@@ -559,10 +596,10 @@ function finishEditing() {
     }
   } else if (!text) {
     commit(annotations().filter((a) => a.id !== draft.id));
-  } else if (text !== draft.text) {
-    update(draft.id, { text });
   } else {
-    refresh();
+    // Style may have been changed while typing; `update` skips no-ops.
+    const { color, size, textBackground, bold, italic } = draft;
+    update(draft.id, { text, color, size, textBackground, bold, italic });
   }
 }
 
@@ -650,9 +687,9 @@ function buildPanels() {
   on("[data-marker-kind]", (el) => setStyle({ markerKind: el.dataset.markerKind as MarkerKind }));
   on("[data-redact-mode]", (el) => setStyle({ redactMode: el.dataset.redactMode as RedactMode }));
   on("[data-zoom]", (el) => setStyle({ zoom: Number(el.dataset.zoom) }));
-  $<HTMLInputElement>("#boxed").addEventListener("change", (e) =>
-    setStyle({ boxed: (e.target as HTMLInputElement).checked }),
-  );
+  on("[data-text-background]", (el) => setStyle({ textBackground: el.dataset.textBackground as TextBackground }));
+  $("#bold").addEventListener("click", () => setStyle({ bold: !style.bold }));
+  $("#italic").addEventListener("click", () => setStyle({ italic: !style.italic }));
   $<HTMLInputElement>("#blur-outside").addEventListener("change", (e) =>
     setStyle({ blurOutside: (e.target as HTMLInputElement).checked }),
   );
@@ -741,7 +778,9 @@ function updatePanels() {
   check("[data-shape]", (el) => el.dataset.shape === style.shape);
   check("[data-redact-mode]", (el) => el.dataset.redactMode === style.redactMode);
   check("[data-marker-kind]", (el) => el.dataset.markerKind === style.markerKind);
-  $<HTMLInputElement>("#boxed").checked = style.boxed;
+  check("[data-text-background]", (el) => el.dataset.textBackground === style.textBackground);
+  $("#bold").setAttribute("aria-pressed", String(style.bold));
+  $("#italic").setAttribute("aria-pressed", String(style.italic));
   $<HTMLInputElement>("#blur-outside").checked = style.blurOutside;
 
   const kind = contextKind();

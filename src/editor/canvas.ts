@@ -62,9 +62,15 @@ export interface CanvasCallbacks {
   onDraw(annotation: Annotation): void;
 }
 
+/** Konva font style for a text note, e.g. "italic bold". */
+export function textFontStyle(note: TextNote): string {
+  return [note.italic ? "italic" : "", note.bold ? "bold" : ""].filter(Boolean).join(" ") || "normal";
+}
+
 /** Padding inside a text box, in image pixels. */
 export function textPadding(note: TextNote, pixelRatio: number): number {
-  return note.boxed ? fontSize(note.size, pixelRatio) * 0.35 : 0;
+  const boxed = note.textBackground === "white" || note.textBackground === "color";
+  return boxed ? fontSize(note.size, pixelRatio) * 0.35 : 0;
 }
 
 export class AnnotationCanvas {
@@ -576,12 +582,13 @@ export class AnnotationCanvas {
   private drawText(group: Konva.Group, t: TextNote): void {
     group.position({ x: t.x, y: t.y });
     const size = fontSize(t.size, this.pixelRatio);
+    const box = t.textBackground === "white" || t.textBackground === "color";
     const label = new Konva.Label();
     label.add(
       new Konva.Tag(
-        t.boxed
+        box
           ? {
-              fill: "#ffffff",
+              fill: t.textBackground === "color" ? t.color : "#ffffff",
               stroke: t.color,
               strokeWidth: Math.max(1, size * 0.08),
               cornerRadius: size * 0.25,
@@ -593,13 +600,24 @@ export class AnnotationCanvas {
         text: t.text,
         fontSize: size,
         fontFamily: FONT_FAMILY,
+        fontStyle: textFontStyle(t),
         lineHeight: TEXT_LINE_HEIGHT,
-        fill: t.color,
+        fill: t.textBackground === "color" ? contrastColor(t.color) : t.color,
         padding: textPadding(t, this.pixelRatio),
+        // Halo: white outline drawn behind the letters.
+        ...(t.textBackground === "halo"
+          ? {
+              stroke: "#ffffff",
+              strokeWidth: size * 0.22,
+              lineJoin: "round" as const,
+              fillAfterStrokeEnabled: true,
+            }
+          : {}),
       }),
     );
     group.add(label);
   }
+
 
   /** Arrow points are absolute; the group offset is the drag delta. */
   private drawArrow(group: Konva.Group, a: Arrow): void {

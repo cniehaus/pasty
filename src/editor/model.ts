@@ -2,6 +2,8 @@
 
 export type Size = "s" | "m" | "l";
 export type HeadStyle = "filled" | "open" | "dot";
+/** Text background: none, white outline around letters, white box, box in the text colour. */
+export type TextBackground = "none" | "halo" | "white" | "color";
 /** Arrow end: no head (plain line end) or a head style. */
 export type Head = "none" | HeadStyle;
 export type FrameShape = "rect" | "ellipse";
@@ -13,7 +15,9 @@ export type MarkerKind = "number" | "letter";
 export interface Style {
   color: string;
   size: Size;
-  boxed: boolean;
+  textBackground: TextBackground;
+  bold: boolean;
+  italic: boolean;
   startHead: Head;
   endHead: Head;
   zoom: number;
@@ -46,7 +50,9 @@ export interface Marker extends Base {
 export interface TextNote extends Base {
   kind: "text";
   text: string;
-  boxed: boolean;
+  textBackground: TextBackground;
+  bold: boolean;
+  italic: boolean;
 }
 
 /** Arrow or line from (x, y) to (x2, y2). */
@@ -108,7 +114,7 @@ export type Kind = Annotation["kind"];
 /** Style properties that apply to each kind. */
 export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   marker: ["color", "size"],
-  text: ["color", "size", "boxed"],
+  text: ["color", "size", "textBackground", "bold", "italic"],
   arrow: ["color", "size", "startHead", "endHead"],
   magnifier: ["size", "zoom", "blurOutside"],
   frame: ["color", "size", "shape"],
@@ -171,7 +177,9 @@ export const ZOOM_LEVELS = [1.5, 2, 3] as const;
 export const DEFAULT_STYLE: Style = {
   color: COLORS[0].value,
   size: "m",
-  boxed: false,
+  textBackground: "white",
+  bold: false,
+  italic: false,
   startHead: "none",
   endHead: "filled",
   zoom: 2,
@@ -240,11 +248,16 @@ export function translate(a: Annotation, dx: number, dy: number): Annotation {
 
 /**
  * Brings annotations saved by older versions up to date (arrows used to
- * have `heads` + `headStyle` instead of one head per end).
+ * have `heads` + `headStyle` instead of one head per end; texts had a
+ * `boxed` flag instead of a background choice).
  */
 export function migrate(saved: unknown[]): Annotation[] {
   return saved.map((item) => {
     const a = item as Record<string, unknown>;
+    if (a.kind === "text" && "boxed" in a) {
+      const { boxed, ...rest } = a as { boxed: boolean };
+      return { ...rest, textBackground: boxed ? "white" : "none", bold: false, italic: false } as Annotation;
+    }
     if (a.kind === "arrow" && "heads" in a) {
       const { heads, headStyle, ...rest } = a as { heads: string; headStyle: HeadStyle };
       const style = headStyle ?? "filled";

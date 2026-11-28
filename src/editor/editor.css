@@ -96,7 +96,8 @@ svg .bright {
   display: none !important;
 }
 
-[aria-checked="true"] {
+[aria-checked="true"],
+[aria-pressed="true"] {
   background: var(--active);
   color: var(--accent);
 }

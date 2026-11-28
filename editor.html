@@ -125,10 +125,23 @@
           </div>
         </div>
 
-        <label class="row check" data-for="text">
-          <span class="label">Kasten</span>
-          <input type="checkbox" id="boxed" />
-        </label>
+        <div class="row" data-for="text">
+          <span class="label">Hintergrund</span>
+          <div class="segmented" role="radiogroup" aria-label="Hintergrund">
+            <button data-text-background="none" title="Ohne Hintergrund">Ohne</button>
+            <button data-text-background="halo" title="Weißer Rand um die Buchstaben">Kontur</button>
+            <button data-text-background="white" title="Weißer Kasten">Weiß</button>
+            <button data-text-background="color" title="Kasten in der Textfarbe">Farbig</button>
+          </div>
+        </div>
+
+        <div class="row" data-for="text">
+          <span class="label">Stil</span>
+          <div class="segmented">
+            <button id="bold" title="Fett" aria-label="Fett" aria-pressed="false"><b>F</b></button>
+            <button id="italic" title="Kursiv" aria-label="Kursiv" aria-pressed="false"><i>K</i></button>
+          </div>
+        </div>
 
         <div class="row" data-for="arrow">
           <span class="label">Anfang</span>
