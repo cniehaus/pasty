@@ -40,6 +40,15 @@ npm run tauri dev     # App im Entwicklungsmodus starten
 npm run tauri build   # Installer bauen (DMG bzw. MSI/EXE)
 ```
 
+Release erstellen (Version überall anpassen, committen, taggen, pushen; die
+Installer baut danach GitHub Actions):
+
+```sh
+npm run release 0.1.5                       # Text aus den Commits seit dem letzten Release
+npm run release 0.1.5 -- --notes notes.md   # eigener „Neu in …“-Text
+npm run release 0.1.5 -- --dry-run          # nur anzeigen
+```
+
 Pasta erscheint als Icon in der Menüleiste (macOS) bzw. im Infobereich
 (Windows). Aufnahme per **⌘⇧2** bzw. **Strg+Umschalt+2**.
 
