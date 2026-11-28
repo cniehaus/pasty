@@ -982,6 +982,10 @@ export class AnnotationCanvas {
     if (draft) {
       this.drawing.draft = draft;
       preview.add(this.createNode(draft));
+      // A highlighter only blends ("multiply") with the image in the image's
+      // own layer; in the UI layer the preview would look opaque.
+      const layer = draft.kind === "highlight" ? this.highlightGroup : this.uiLayer;
+      if (preview.getParent() !== layer) preview.moveTo(layer);
     }
   }
 
@@ -1009,7 +1013,8 @@ function drawBlurred(
 ): void {
   const { width, height } = ctx.canvas;
   // Downscale only so far that a few pixels of blur remain; keeps it fast.
-  const factor = Math.max(1, Math.floor(radius / 3));
+  // Half resolution at least: looks the same, about four times faster.
+  const factor = Math.max(2, Math.floor(radius / 3));
   const small = document.createElement("canvas");
   small.width = Math.max(1, Math.round(width / factor));
   small.height = Math.max(1, Math.round(height / factor));

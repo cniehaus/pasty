@@ -223,7 +223,8 @@ const FONT_SIZE: Record<Size, number> = { s: 14, m: 20, l: 28, xl: 40 };
 const STROKE_WIDTH: Record<Size, number> = { s: 2.5, m: 4, l: 6, xl: 11 };
 const MAGNIFIER_RADIUS = 90;
 const PIXEL_BLOCK: Record<Size, number> = { s: 6, m: 10, l: 16, xl: 24 };
-const REDACT_BLUR: Record<Size, number> = { s: 6, m: 10, l: 16, xl: 24 };
+// Light enough that one still sees there was text, too strong to read it.
+const REDACT_BLUR: Record<Size, number> = { s: 2, m: 3.5, l: 6, xl: 10 };
 const DIM_OPACITY: Record<Size, number> = { s: 0.35, m: 0.55, l: 0.75, xl: 0.85 };
 
 export function markerRadius(size: Size, pixelRatio: number): number {
