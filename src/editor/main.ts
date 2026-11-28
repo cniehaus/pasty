@@ -813,6 +813,10 @@ function updatePanels() {
   document.querySelectorAll<HTMLElement>("[data-for]").forEach((el) => {
     el.hidden = !el.dataset.for!.split(" ").includes(kind);
   });
+  // Hide a section (and its heading) when none of its rows apply.
+  document.querySelectorAll<HTMLElement>(".props-section").forEach((section) => {
+    section.hidden = !section.querySelector("[data-for]:not([hidden])");
+  });
 
   const sel = selected();
   $("#props-title").textContent = sel ? `Ausgewählt: ${TOOL_NAMES[sel.kind]}` : TOOL_NAMES[tool];
