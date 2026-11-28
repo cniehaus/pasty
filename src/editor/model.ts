@@ -5,6 +5,8 @@ export type HeadPosition = "end" | "start" | "both" | "none";
 export type HeadStyle = "filled" | "open" | "dot";
 export type FrameShape = "rect" | "ellipse";
 export type RedactMode = "pixelate" | "blur" | "solid";
+/** Sequence for new markers: 1, 2, 3 … or A, B, C … */
+export type MarkerKind = "number" | "letter";
 
 /** Current tool settings; each annotation kind uses a subset. */
 export interface Style {
@@ -17,6 +19,7 @@ export interface Style {
   blurOutside: boolean;
   shape: FrameShape;
   redactMode: RedactMode;
+  markerKind: MarkerKind;
 }
 
 interface Base {
@@ -123,6 +126,7 @@ export const DEFAULT_STYLE: Style = {
   blurOutside: false,
   shape: "rect",
   redactMode: "pixelate",
+  markerKind: "number",
 };
 
 export const MAGNIFIER_COLOR = "#ffffff";
@@ -192,12 +196,18 @@ export function spanRect(a: { x: number; y: number }, b: { x: number; y: number 
   };
 }
 
-/** Next step number: one more than the highest existing marker. */
-export function nextMarkerLabel(annotations: readonly Annotation[]): string {
-  const numbers = annotations
-    .filter((a): a is Marker => a.kind === "marker")
-    .map((m) => Number.parseInt(m.label, 10))
-    .filter(Number.isFinite);
+/**
+ * Next marker label: one after the highest existing one of the same kind.
+ * Numbers and letters count independently; letters run A–Z, then wrap to A.
+ */
+export function nextMarkerLabel(annotations: readonly Annotation[], kind: MarkerKind = "number"): string {
+  const labels = annotations.filter((a): a is Marker => a.kind === "marker").map((m) => m.label);
+  if (kind === "letter") {
+    const codes = labels.filter((l) => /^[A-Z]$/.test(l)).map((l) => l.charCodeAt(0) - 65);
+    const next = codes.length ? (Math.max(...codes) + 1) % 26 : 0;
+    return String.fromCharCode(65 + next);
+  }
+  const numbers = labels.filter((l) => /^\d+$/.test(l)).map((l) => Number.parseInt(l, 10));
   return String(Math.max(0, ...numbers) + 1);
 }
 

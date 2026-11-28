@@ -14,7 +14,7 @@
         <button class="tool" data-tool="select" title="Auswählen (V)" aria-label="Auswählen">
           <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" /></svg>
         </button>
-        <button class="tool" data-tool="marker" title="Nummer (N)" aria-label="Nummer">
+        <button class="tool" data-tool="marker" title="Nummer oder Buchstabe (N)" aria-label="Nummer oder Buchstabe">
           <svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9" />
             <path d="M10.5 9l2-1.5V16" />
@@ -57,6 +57,11 @@
         <button data-size="s" title="Klein">S</button>
         <button data-size="m" title="Mittel">M</button>
         <button data-size="l" title="Groß">L</button>
+      </div>
+
+      <div class="group segmented" role="radiogroup" aria-label="Zählweise" data-for="marker">
+        <button data-marker-kind="number" title="Zahlen 1, 2, 3 …">1 2 3</button>
+        <button data-marker-kind="letter" title="Buchstaben A, B, C …">A B C</button>
       </div>
 
       <label class="toggle" data-for="text" title="Text mit weißem Kasten hinterlegen">

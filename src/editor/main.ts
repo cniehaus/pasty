@@ -12,6 +12,7 @@ import {
   type HeadPosition,
   type HeadStyle,
   type Kind,
+  type MarkerKind,
   type RedactMode,
   type Size,
   type Style,
@@ -165,7 +166,7 @@ function updateDraftFactory() {
         ty: e.y,
         color,
         size,
-        label: nextMarkerLabel(annotations()),
+        label: nextMarkerLabel(annotations(), style.markerKind),
       });
       break;
     default:
@@ -200,7 +201,7 @@ function onBackgroundClick(p: Point) {
   if (tool === "marker") {
     commit([
       ...annotations(),
-      { kind: "marker", id: newId(), x: p.x, y: p.y, color, size, label: nextMarkerLabel(annotations()) },
+      { kind: "marker", id: newId(), x: p.x, y: p.y, color, size, label: nextMarkerLabel(annotations(), style.markerKind) },
     ]);
   } else if (tool === "text") {
     if (selectedId) select(null);
@@ -408,6 +409,9 @@ function buildToolbar() {
   document.querySelectorAll<HTMLButtonElement>("[data-shape]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ shape: b.dataset.shape as FrameShape })),
   );
+  document.querySelectorAll<HTMLButtonElement>("[data-marker-kind]").forEach((b) =>
+    b.addEventListener("click", () => setStyle({ markerKind: b.dataset.markerKind as MarkerKind })),
+  );
   document.querySelectorAll<HTMLButtonElement>("[data-redact-mode]").forEach((b) =>
     b.addEventListener("click", () => setStyle({ redactMode: b.dataset.redactMode as RedactMode })),
   );
@@ -488,6 +492,7 @@ function updateToolbar() {
   check("[data-zoom]", (el) => Number(el.dataset.zoom) === style.zoom);
   check("[data-shape]", (el) => el.dataset.shape === style.shape);
   check("[data-redact-mode]", (el) => el.dataset.redactMode === style.redactMode);
+  check("[data-marker-kind]", (el) => el.dataset.markerKind === style.markerKind);
   $<HTMLInputElement>("#boxed").checked = style.boxed;
   $<HTMLInputElement>("#blur-outside").checked = style.blurOutside;
 
