@@ -131,33 +131,36 @@
         </label>
 
         <div class="row" data-for="arrow">
-          <span class="label">Spitze</span>
-          <div class="segmented" role="radiogroup" aria-label="Pfeilspitzen">
-            <button data-heads="end" title="Am Ende" aria-label="Am Ende">
-              <svg viewBox="0 0 24 24"><path d="M4 12h15M15 8l4 4-4 4" /></svg>
-            </button>
-            <button data-heads="start" title="Am Anfang" aria-label="Am Anfang">
-              <svg viewBox="0 0 24 24"><path d="M5 12h15M9 8l-4 4 4 4" /></svg>
-            </button>
-            <button data-heads="both" title="An beiden Enden" aria-label="An beiden Enden">
-              <svg viewBox="0 0 24 24"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg>
-            </button>
-            <button data-heads="none" title="Keine (Linie)" aria-label="Keine Spitze">
+          <span class="label">Anfang</span>
+          <div class="segmented" role="radiogroup" aria-label="Anfang">
+            <button data-start-head="none" title="Keine Spitze" aria-label="Keine Spitze">
               <svg viewBox="0 0 24 24"><path d="M4 12h16" /></svg>
+            </button>
+            <button data-start-head="filled" title="Gefülltes Dreieck" aria-label="Gefülltes Dreieck">
+              <svg viewBox="0 0 24 24"><path d="M11 12h9" /><path class="fill" d="M11 7l-7 5 7 5z" /></svg>
+            </button>
+            <button data-start-head="open" title="Offene Spitze" aria-label="Offene Spitze">
+              <svg viewBox="0 0 24 24"><path d="M5 12h15M10 7l-5 5 5 5" /></svg>
+            </button>
+            <button data-start-head="dot" title="Punkt" aria-label="Punkt">
+              <svg viewBox="0 0 24 24"><path d="M9 12h11" /><circle class="fill" cx="7" cy="12" r="3.5" /></svg>
             </button>
           </div>
         </div>
 
         <div class="row" data-for="arrow">
-          <span class="label">Form der Spitze</span>
-          <div class="segmented" role="radiogroup" aria-label="Form der Spitze">
-            <button data-head-style="filled" title="Gefüllt" aria-label="Gefüllt">
+          <span class="label">Ende</span>
+          <div class="segmented" role="radiogroup" aria-label="Ende">
+            <button data-end-head="none" title="Keine Spitze" aria-label="Keine Spitze">
+              <svg viewBox="0 0 24 24"><path d="M4 12h16" /></svg>
+            </button>
+            <button data-end-head="filled" title="Gefülltes Dreieck" aria-label="Gefülltes Dreieck">
               <svg viewBox="0 0 24 24"><path d="M4 12h9" /><path class="fill" d="M13 7l7 5-7 5z" /></svg>
             </button>
-            <button data-head-style="open" title="Offen" aria-label="Offen">
+            <button data-end-head="open" title="Offene Spitze" aria-label="Offene Spitze">
               <svg viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5" /></svg>
             </button>
-            <button data-head-style="dot" title="Punkt" aria-label="Punkt">
+            <button data-end-head="dot" title="Punkt" aria-label="Punkt">
               <svg viewBox="0 0 24 24"><path d="M4 12h11" /><circle class="fill" cx="17" cy="12" r="3.5" /></svg>
             </button>
           </div>

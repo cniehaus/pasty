@@ -606,16 +606,13 @@ export class AnnotationCanvas {
     group.destroyChildren();
     const width = strokeWidth(a.size, this.pixelRatio);
     const angle = Math.atan2(a.y2 - a.y, a.x2 - a.x);
-    const atStart = a.heads === "start" || a.heads === "both";
-    const atEnd = a.heads === "end" || a.heads === "both";
-
     // A filled head covers the line end; stop the line short of the tip so
     // its round cap doesn't poke through.
-    const inset = a.headStyle === "filled" ? headLength(width) * 0.8 : 0;
+    const inset = (head: string) => (head === "filled" ? headLength(width) * 0.8 : 0);
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
-    const start = atStart ? { x: a.x + dx * inset, y: a.y + dy * inset } : { x: a.x, y: a.y };
-    const end = atEnd ? { x: a.x2 - dx * inset, y: a.y2 - dy * inset } : { x: a.x2, y: a.y2 };
+    const start = { x: a.x + dx * inset(a.startHead), y: a.y + dy * inset(a.startHead) };
+    const end = { x: a.x2 - dx * inset(a.endHead), y: a.y2 - dy * inset(a.endHead) };
 
     group.add(
       new Konva.Line({
@@ -626,8 +623,8 @@ export class AnnotationCanvas {
         hitStrokeWidth: Math.max(width, this.hitTolerance()),
       }),
     );
-    if (atEnd) group.add(arrowHead(a.x2, a.y2, angle, a.headStyle, a.color, width));
-    if (atStart) group.add(arrowHead(a.x, a.y, angle + Math.PI, a.headStyle, a.color, width));
+    if (a.endHead !== "none") group.add(arrowHead(a.x2, a.y2, angle, a.endHead, a.color, width));
+    if (a.startHead !== "none") group.add(arrowHead(a.x, a.y, angle + Math.PI, a.startHead, a.color, width));
   }
 
   private drawMagnifier(group: Konva.Group, m: Magnifier): void {

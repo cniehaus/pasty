@@ -10,8 +10,7 @@ import { History } from "./history";
 import {
   type Annotation,
   type FrameShape,
-  type HeadPosition,
-  type HeadStyle,
+  type Head,
   type Kind,
   type MarkerKind,
   type Rect,
@@ -27,6 +26,7 @@ import {
   defaultMagnifierRadius,
   fitRatio,
   fontSize,
+  migrate,
   newId,
   nextMarkerLabel,
   spanRect,
@@ -263,8 +263,8 @@ function updateDraftFactory() {
         y2: e.y,
         color,
         size,
-        heads: style.heads,
-        headStyle: style.headStyle,
+        startHead: style.startHead,
+        endHead: style.endHead,
       });
       break;
     case "frame":
@@ -341,7 +341,7 @@ async function loadDoc(id: number): Promise<Doc> {
   const json = await invoke<string | null>("load_annotations", { id });
   if (json) {
     try {
-      saved = JSON.parse(json);
+      saved = migrate(JSON.parse(json));
     } catch {
       saved = [];
     }
@@ -644,8 +644,8 @@ function buildPanels() {
   on("[data-tool]", (el) => setTool(el.dataset.tool as Tool));
   on("[data-color]", (el) => setStyle({ color: el.dataset.color }));
   on("[data-size]", (el) => setStyle({ size: el.dataset.size as Size }));
-  on("[data-heads]", (el) => setStyle({ heads: el.dataset.heads as HeadPosition }));
-  on("[data-head-style]", (el) => setStyle({ headStyle: el.dataset.headStyle as HeadStyle }));
+  on("[data-start-head]", (el) => setStyle({ startHead: el.dataset.startHead as Head }));
+  on("[data-end-head]", (el) => setStyle({ endHead: el.dataset.endHead as Head }));
   on("[data-shape]", (el) => setStyle({ shape: el.dataset.shape as FrameShape }));
   on("[data-marker-kind]", (el) => setStyle({ markerKind: el.dataset.markerKind as MarkerKind }));
   on("[data-redact-mode]", (el) => setStyle({ redactMode: el.dataset.redactMode as RedactMode }));
@@ -735,8 +735,8 @@ function updatePanels() {
   check("[data-tool]", (el) => el.dataset.tool === tool);
   check("[data-color]", (el) => el.dataset.color === style.color);
   check("[data-size]", (el) => el.dataset.size === style.size);
-  check("[data-heads]", (el) => el.dataset.heads === style.heads);
-  check("[data-head-style]", (el) => el.dataset.headStyle === style.headStyle);
+  check("[data-start-head]", (el) => el.dataset.startHead === style.startHead);
+  check("[data-end-head]", (el) => el.dataset.endHead === style.endHead);
   check("[data-zoom]", (el) => Number(el.dataset.zoom) === style.zoom);
   check("[data-shape]", (el) => el.dataset.shape === style.shape);
   check("[data-redact-mode]", (el) => el.dataset.redactMode === style.redactMode);

@@ -1,8 +1,9 @@
 // Annotation data model. All coordinates and sizes are in image pixels.
 
 export type Size = "s" | "m" | "l";
-export type HeadPosition = "end" | "start" | "both" | "none";
 export type HeadStyle = "filled" | "open" | "dot";
+/** Arrow end: no head (plain line end) or a head style. */
+export type Head = "none" | HeadStyle;
 export type FrameShape = "rect" | "ellipse";
 export type RedactMode = "pixelate" | "blur" | "solid";
 /** Sequence for new markers: 1, 2, 3 … or A, B, C … */
@@ -13,8 +14,8 @@ export interface Style {
   color: string;
   size: Size;
   boxed: boolean;
-  heads: HeadPosition;
-  headStyle: HeadStyle;
+  startHead: Head;
+  endHead: Head;
   zoom: number;
   blurOutside: boolean;
   shape: FrameShape;
@@ -53,8 +54,8 @@ export interface Arrow extends Base {
   kind: "arrow";
   x2: number;
   y2: number;
-  heads: HeadPosition;
-  headStyle: HeadStyle;
+  startHead: Head;
+  endHead: Head;
 }
 
 /** Circular lens magnifying what lies beneath its centre (x, y). */
@@ -108,7 +109,7 @@ export type Kind = Annotation["kind"];
 export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   marker: ["color", "size"],
   text: ["color", "size", "boxed"],
-  arrow: ["color", "size", "heads", "headStyle"],
+  arrow: ["color", "size", "startHead", "endHead"],
   magnifier: ["size", "zoom", "blurOutside"],
   frame: ["color", "size", "shape"],
   redact: ["color", "size", "redactMode"],
@@ -171,8 +172,8 @@ export const DEFAULT_STYLE: Style = {
   color: COLORS[0].value,
   size: "m",
   boxed: false,
-  heads: "end",
-  headStyle: "filled",
+  startHead: "none",
+  endHead: "filled",
   zoom: 2,
   blurOutside: false,
   shape: "rect",
@@ -235,6 +236,26 @@ export function translate(a: Annotation, dx: number, dy: number): Annotation {
     return { ...moved, tx: moved.tx + dx, ty: moved.ty + dy };
   }
   return moved;
+}
+
+/**
+ * Brings annotations saved by older versions up to date (arrows used to
+ * have `heads` + `headStyle` instead of one head per end).
+ */
+export function migrate(saved: unknown[]): Annotation[] {
+  return saved.map((item) => {
+    const a = item as Record<string, unknown>;
+    if (a.kind === "arrow" && "heads" in a) {
+      const { heads, headStyle, ...rest } = a as { heads: string; headStyle: HeadStyle };
+      const style = headStyle ?? "filled";
+      return {
+        ...rest,
+        startHead: heads === "start" || heads === "both" ? style : "none",
+        endHead: heads === "end" || heads === "both" ? style : "none",
+      } as Annotation;
+    }
+    return a as unknown as Annotation;
+  });
 }
 
 /** Rectangle spanned by two corner points. */
