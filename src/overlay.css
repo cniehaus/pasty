@@ -21,3 +21,17 @@ body {
 #frozen {
   pointer-events: none;
 }
+
+.hint {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgb(20 20 24 / 0.8);
+  color: #fff;
+  font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
+  pointer-events: none;
+  white-space: nowrap;
+}

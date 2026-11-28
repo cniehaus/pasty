@@ -194,7 +194,17 @@ canvas.addEventListener("contextmenu", (e) => {
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") void cancel();
+  else if (e.key === "Enter") void captureWholeScreen();
 });
+
+/** Enter: take the whole frozen screen instead of a region. */
+async function captureWholeScreen() {
+  if (closing) return;
+  closing = true;
+  await invoke("finish_selection", {
+    region: { x: 0, y: 0, width: frozen.naturalWidth, height: frozen.naturalHeight },
+  });
+}
 
 window.addEventListener("resize", resizeCanvas);
 
