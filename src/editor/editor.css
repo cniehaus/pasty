@@ -450,6 +450,31 @@ kbd {
   border-color: var(--accent);
 }
 
+/* Vertical list of choices with a live preview (stamp content) */
+.choice-list {
+  display: grid;
+  gap: 4px;
+}
+
+.choice-list button {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--panel-line);
+  text-align: left;
+}
+
+.choice-list button[aria-checked="true"] {
+  border-color: var(--accent);
+}
+
+.choice-list .preview {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Option tiles with a preview (text background) */
 .option-tiles {
   display: grid;

@@ -28,6 +28,8 @@ export interface Style {
   redactMode: RedactMode;
   markerKind: MarkerKind;
   highlightColor: string;
+  stampKind: StampKind;
+  stampBackground: StampBackground;
 }
 
 interface Base {
@@ -119,17 +121,21 @@ export interface Highlight extends Base {
   highlightColor: string;
 }
 
-/** What a stamp shows. Only date and time so far; more kinds to follow. */
-export type StampKind = "datetime";
+/** What a stamp shows: date and/or time in different formats. */
+export type StampKind = "datetime" | "time" | "date" | "longdate";
+/** Light box behind the stamp, or none (letters get a white outline). */
+export type StampBackground = "light" | "none";
 
 /**
- * Stamp with fixed text, e.g. the date and time when it was placed; (x, y)
- * is the top-left corner. The text is stored, so it doesn't change later.
+ * Date/time stamp; (x, y) is the top-left corner. `time` is when it was
+ * placed, so switching the format keeps the moment.
  */
 export interface Stamp extends Base {
   kind: "stamp";
-  stamp: StampKind;
-  text: string;
+  stampKind: StampKind;
+  stampBackground: StampBackground;
+  /** Milliseconds since 1970. */
+  time: number;
 }
 
 export type Annotation =
@@ -160,7 +166,7 @@ export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   spotlight: ["size", "shape"],
   crop: [],
   highlight: ["highlightColor"],
-  stamp: ["color", "size"],
+  stamp: ["color", "size", "stampKind", "stampBackground"],
 };
 
 export const HIGHLIGHT_COLORS = [
@@ -237,6 +243,8 @@ export const DEFAULT_STYLE: Style = {
   redactMode: "pixelate",
   markerKind: "number",
   highlightColor: "#ffeb3b",
+  stampKind: "datetime",
+  stampBackground: "light",
 };
 
 export const MAGNIFIER_COLOR = "#ffffff";
@@ -273,18 +281,19 @@ export function stepTextSize(current: number, direction: 1 | -1): number {
   return Math.min(TEXT_SIZE_RANGE.max, Math.max(TEXT_SIZE_RANGE.min, next));
 }
 
-/** Stamp text for `kind` at `date`, e.g. "28.11.2026, 13:07". */
-export function stampText(kind: StampKind, date: Date = new Date()): string {
-  switch (kind) {
-    case "datetime":
-      return date.toLocaleString("de-DE", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-  }
+const STAMP_FORMATS: Record<StampKind, Intl.DateTimeFormatOptions> = {
+  datetime: { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" },
+  time: { hour: "2-digit", minute: "2-digit" },
+  date: { day: "2-digit", month: "2-digit", year: "numeric" },
+  longdate: { weekday: "long", day: "numeric", month: "long", year: "numeric" },
+};
+
+/**
+ * Stamp text for `kind` at `time` (ms since 1970), e.g. "28.11.2026, 13:07",
+ * "13:07", "28.11.2026" or "Samstag, 28. November 2026".
+ */
+export function stampText(kind: StampKind, time: number = Date.now()): string {
+  return new Date(time).toLocaleString("de-DE", STAMP_FORMATS[kind]);
 }
 
 export function strokeWidth(size: Size, pixelRatio: number): number {
@@ -341,6 +350,13 @@ export function migrate(saved: unknown[]): Annotation[] {
       }
       if (note.textSize === undefined) note.textSize = FONT_SIZE[(note.size as Size) ?? "m"];
       return note as unknown as Annotation;
+    }
+    if (a.kind === "stamp" && "stamp" in a) {
+      // 0.1.9 stored the formatted text; read the moment back from it.
+      const { stamp: _, text, ...rest } = a as { stamp: string; text: string };
+      const m = /^(\d{2})\.(\d{2})\.(\d{4}), (\d{2}):(\d{2})$/.exec(text);
+      const time = m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]).getTime() : Date.now();
+      return { ...rest, stampKind: "datetime", stampBackground: "light", time } as unknown as Annotation;
     }
     if (a.kind === "arrow" && "heads" in a) {
       const { heads, headStyle, ...rest } = a as { heads: string; headStyle: HeadStyle };

@@ -27,6 +27,7 @@ import {
   fontSize,
   markerRadius,
   pixelBlockSize,
+  stampText,
   redactBlurRadius,
   strokeWidth,
   textFontSize,
@@ -752,20 +753,30 @@ export class AnnotationCanvas {
     );
   }
 
-  /** Rubber-stamp look: bold text in a double outline on a light box. */
+  /**
+   * Rubber-stamp look: bold text in a double outline. With a light box
+   * behind it, or without; then the letters and lines get a white outline
+   * so they stay readable on any background.
+   */
   private drawStamp(group: Konva.Group, s: Stamp): void {
     group.position({ x: s.x, y: s.y });
     const size = fontSize(s.size, this.pixelRatio) * 0.9;
     const outer = Math.max(1, size * 0.12);
     const inner = Math.max(1, size * 0.05);
+    const light = s.stampBackground === "light";
+    const halo = (width: number): Konva.ShapeConfig =>
+      light ? {} : { shadowColor: "#ffffff", shadowBlur: width, shadowOpacity: 1, perfectDrawEnabled: false };
     const text = new Konva.Text({
-      text: s.text,
+      text: stampText(s.stampKind, s.time),
       fontSize: size,
       fontFamily: FONT_FAMILY,
       fontStyle: "bold",
       fill: s.color,
       padding: size * 0.55,
       listening: false,
+      ...(light
+        ? {}
+        : { stroke: "#ffffff", strokeWidth: size * 0.22, lineJoin: "round" as const, fillAfterStrokeEnabled: true }),
     });
     const width = text.width();
     const height = text.height();
@@ -774,11 +785,12 @@ export class AnnotationCanvas {
       new Konva.Rect({
         width,
         height,
-        fill: "rgba(255, 255, 255, 0.92)",
+        // Transparent fill without background, so the inside can be grabbed.
+        fill: light ? "rgba(255, 255, 255, 0.92)" : "rgba(0, 0, 0, 0)",
         stroke: s.color,
         strokeWidth: outer,
         cornerRadius: size * 0.3,
-        ...softShadow(size * 0.3, 0),
+        ...(light ? softShadow(size * 0.3, 0) : halo(outer * 2)),
       }),
       new Konva.Rect({
         x: gap,
@@ -789,6 +801,7 @@ export class AnnotationCanvas {
         strokeWidth: inner,
         cornerRadius: size * 0.18,
         listening: false,
+        ...halo(inner * 3),
       }),
       text,
     );

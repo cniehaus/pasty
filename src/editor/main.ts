@@ -16,6 +16,8 @@ import {
   type Rect,
   type RedactMode,
   type Size,
+  type StampBackground,
+  type StampKind,
   type Style,
   type TextBackground,
   type TextNote,
@@ -81,7 +83,7 @@ const TOOL_HINTS: Record<Tool, string> = {
   redact: "Ziehen macht einen Bereich unkenntlich. Schwärzen ist am sichersten.",
   magnifier: "Klicken setzt eine Lupe. An den Ecken ziehen ändert die Größe.",
   highlight: "Ziehen markiert einen Bereich wie mit einem Leuchtstift. Die Schrift darunter bleibt lesbar.",
-  stamp: "Klicken setzt einen Stempel mit dem aktuellen Datum und der Uhrzeit.",
+  stamp: "Klicken setzt einen Stempel mit Datum und/oder Uhrzeit von jetzt.",
   crop: "Rahmen an den Anfassern anpassen oder verschieben. ↩ übernimmt, Esc bricht ab. Beschriftungen außerhalb bleiben erhalten.",
 };
 
@@ -511,7 +513,17 @@ function onBackgroundClick(p: Point) {
   } else if (tool === "stamp") {
     commit([
       ...annotations(),
-      { kind: "stamp", id: newId(), x: p.x, y: p.y, color, size, stamp: "datetime", text: stampText("datetime") },
+      {
+        kind: "stamp",
+        id: newId(),
+        x: p.x,
+        y: p.y,
+        color,
+        size,
+        stampKind: style.stampKind,
+        stampBackground: style.stampBackground,
+        time: Date.now(),
+      },
     ]);
   } else if (tool === "magnifier" && doc && canvas) {
     const id = newId();
@@ -746,6 +758,8 @@ function buildPanels() {
   on("[data-marker-kind]", (el) => setStyle({ markerKind: el.dataset.markerKind as MarkerKind }));
   on("[data-redact-mode]", (el) => setStyle({ redactMode: el.dataset.redactMode as RedactMode }));
   on("[data-zoom]", (el) => setStyle({ zoom: Number(el.dataset.zoom) }));
+  on("[data-stamp-kind]", (el) => setStyle({ stampKind: el.dataset.stampKind as StampKind }));
+  on("[data-stamp-background]", (el) => setStyle({ stampBackground: el.dataset.stampBackground as StampBackground }));
   on("[data-text-background]", (el) => setStyle({ textBackground: el.dataset.textBackground as TextBackground }));
   $("#bold").addEventListener("click", () => setStyle({ bold: !style.bold }));
   $("#text-smaller").addEventListener("click", () => setStyle({ textSize: stepTextSize(style.textSize, -1) }));
@@ -869,6 +883,14 @@ function updatePanels() {
   check("[data-shape]", (el) => el.dataset.shape === style.shape);
   check("[data-redact-mode]", (el) => el.dataset.redactMode === style.redactMode);
   check("[data-marker-kind]", (el) => el.dataset.markerKind === style.markerKind);
+  check("[data-stamp-kind]", (el) => el.dataset.stampKind === style.stampKind);
+  // Previews show the selected stamp's moment, else now.
+  const current = selected();
+  const stampTime = current?.kind === "stamp" ? current.time : Date.now();
+  document.querySelectorAll<HTMLElement>("[data-stamp-kind] .preview").forEach((el) => {
+    el.textContent = stampText(el.parentElement!.dataset.stampKind as StampKind, stampTime);
+  });
+  check("[data-stamp-background]", (el) => el.dataset.stampBackground === style.stampBackground);
   check("[data-text-background]", (el) => el.dataset.textBackground === style.textBackground);
   $("#bold").setAttribute("aria-pressed", String(style.bold));
   const sizeInput = $<HTMLInputElement>("#text-size");
