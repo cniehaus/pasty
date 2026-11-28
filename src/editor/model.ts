@@ -221,7 +221,8 @@ export function contrastColor(color: string): string {
 }
 
 let idCounter = 0;
+/** Unique within the session, also next to annotations restored from Rust. */
 export function newId(): string {
   idCounter += 1;
-  return `a${idCounter}`;
+  return `a${Date.now().toString(36)}${idCounter}`;
 }

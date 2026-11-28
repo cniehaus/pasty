@@ -95,7 +95,6 @@ fn freeze_and_open(app: &AppHandle) -> Result<(), String> {
     app.state::<ImageStore>().set_frozen(
         FrozenScreen {
             image: snapshot.image,
-            scale_factor: snapshot.scale_factor,
         },
         png,
     );
@@ -189,5 +188,5 @@ pub async fn finish_selection(app: AppHandle, region: Region) -> Result<(), Stri
     close(&app);
 
     let image = capture::crop(&frozen.image, region)?;
-    editor::open(&app, &image, frozen.scale_factor).map_err(|e| e.to_string())
+    editor::open(&app, &image)
 }

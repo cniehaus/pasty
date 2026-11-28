@@ -127,7 +127,7 @@ export class AnnotationCanvas {
     this.stage.on("mousemove touchmove", () => this.updateDrawing());
     // Konva fires mouseup before click, so drawing finishes first.
     this.stage.on("mouseup touchend", () => this.finishDrawing());
-    window.addEventListener("pointerup", () => this.finishDrawing());
+    window.addEventListener("pointerup", this.onWindowPointerUp);
 
     this.stage.on("click tap", (e) => {
       if (this.suppressClick) {
@@ -148,6 +148,26 @@ export class AnnotationCanvas {
       const id = annotationId(e.target);
       if (id) callbacks.onEditText(id);
     });
+  }
+
+  private readonly onWindowPointerUp = () => this.finishDrawing();
+
+  /** Releases the stage and global listeners (when switching images). */
+  destroy(): void {
+    window.removeEventListener("pointerup", this.onWindowPointerUp);
+    this.stage.destroy();
+  }
+
+  /** Small PNG data URL of the annotated image for the film strip. */
+  thumbnail(maxWidth: number, maxHeight: number): string {
+    const { naturalWidth: w, naturalHeight: h } = this.image;
+    const ratio = Math.min(maxWidth / w, maxHeight / h, 1) / this.scale;
+    this.uiLayer.visible(false);
+    try {
+      return this.stage.toDataURL({ pixelRatio: ratio });
+    } finally {
+      this.uiLayer.visible(true);
+    }
   }
 
   /** Display scale: CSS pixels per image pixel. */

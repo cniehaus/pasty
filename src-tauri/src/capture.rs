@@ -21,7 +21,6 @@ pub struct MonitorBounds {
 pub struct Snapshot {
     pub image: RgbaImage,
     pub bounds: MonitorBounds,
-    pub scale_factor: f64,
 }
 
 /// Selected region in image pixels.
@@ -46,14 +45,9 @@ pub fn snapshot_monitor_under_cursor(app: &AppHandle) -> Result<Snapshot, String
         width: monitor.width().map_err(err)?,
         height: monitor.height().map_err(err)?,
     };
-    let scale_factor = f64::from(monitor.scale_factor().map_err(err)?);
     let image = monitor.capture_image().map_err(err)?;
 
-    Ok(Snapshot {
-        image,
-        bounds,
-        scale_factor,
-    })
+    Ok(Snapshot { image, bounds })
 }
 
 /// Returns a copy of `region`, which must lie fully inside `image`.

@@ -1,7 +1,8 @@
-// Editor controller: owns the state, wires toolbar, keyboard and canvas.
+// Editor controller: owns the documents (one per capture), the active tool
+// and style, and wires tools, settings panel, film strip and keyboard.
 
 import { invoke } from "@tauri-apps/api/core";
-import { LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import { storedImageUrl } from "../images";
 import { AnnotationCanvas, FONT_FAMILY, TEXT_LINE_HEIGHT, textPadding, type Point } from "./canvas";
@@ -31,17 +32,58 @@ import {
 
 type Tool = "select" | Kind;
 
+/** One capture with its annotations and undo history. */
+interface Doc {
+  id: number;
+  image: HTMLImageElement;
+  history: History<readonly Annotation[]>;
+  selectedId: string | null;
+  thumb: string;
+}
+
 const IS_MAC = navigator.userAgent.includes("Mac");
 const STAGE_MARGIN = 24;
-const MIN_WINDOW_HEIGHT = 360;
 const PATH_HEADER = "x-pasta-path";
+const SAVE_DELAY_MS = 400;
+const THUMB_SIZE = { width: 300, height: 152 };
 
-const history = new History<readonly Annotation[]>([]);
-let selectedId: string | null = null;
+const TOOL_NAMES: Record<Tool, string> = {
+  select: "Auswählen",
+  marker: "Nummer",
+  text: "Text",
+  arrow: "Pfeil",
+  frame: "Rahmen",
+  spotlight: "Betonen",
+  redact: "Unkenntlich",
+  magnifier: "Lupe",
+};
+
+const TOOL_HINTS: Record<Tool, string> = {
+  select: "Element anklicken, um es zu verschieben oder zu ändern. Rahmen und betonte Bereiche lassen sich auf der ganzen Fläche greifen.",
+  marker: "Klicken setzt die nächste Nummer. Ziehen setzt sie mit Zeigerlinie.",
+  text: "Klicken und tippen. Esc übernimmt den Text, Doppelklick bearbeitet ihn.",
+  arrow: "Ziehen zeichnet einen Pfeil. Die Endpunkte lassen sich danach einzeln verschieben.",
+  frame: "Ziehen zeichnet einen Rahmen zum Einkreisen.",
+  spotlight: "Ziehen markiert einen Bereich, der hell bleibt. Der Rest wird abgedunkelt.",
+  redact: "Ziehen macht einen Bereich unkenntlich. Schwärzen ist am sichersten.",
+  magnifier: "Klicken setzt eine Lupe. An den Ecken ziehen ändert die Größe.",
+};
+
+const SIZE_LABELS: Partial<Record<Kind, string>> = {
+  arrow: "Strichstärke",
+  frame: "Strichstärke",
+  spotlight: "Abdunklung",
+  redact: "Stärke",
+  magnifier: "Ring",
+};
+
+const docs: Doc[] = [];
+let doc: Doc | null = null;
+let canvas: AnnotationCanvas | null = null;
 let tool: Tool = "marker";
 let style: Style = { ...DEFAULT_STYLE };
 let editing: { draft: TextNote; isNew: boolean; textarea: HTMLTextAreaElement } | null = null;
-let canvas: AnnotationCanvas;
+let saveTimer: number | undefined;
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const stageArea = $<HTMLElement>("#stage-area");
@@ -50,16 +92,18 @@ const stageEl = $<HTMLDivElement>("#stage");
 // ---------------------------------------------------------------- state ---
 
 function annotations(): readonly Annotation[] {
-  return history.present;
+  return doc?.history.present ?? [];
 }
 
 function selected(): Annotation | undefined {
-  return annotations().find((a) => a.id === selectedId);
+  return annotations().find((a) => a.id === doc?.selectedId);
 }
 
 function commit(next: readonly Annotation[]) {
-  history.push(next);
+  if (!doc) return;
+  doc.history.push(next);
   refresh();
+  scheduleSave();
 }
 
 function update(id: string, change: Partial<Annotation> | Partial<Style>) {
@@ -73,22 +117,25 @@ function update(id: string, change: Partial<Annotation> | Partial<Style>) {
 }
 
 function refresh() {
-  if (selectedId && !selected()) selectedId = null;
-  canvas.render(annotations(), selectedId, editing?.isNew ? undefined : editing?.draft.id);
-  updateToolbar();
+  if (doc && doc.selectedId && !selected()) doc.selectedId = null;
+  canvas?.render(annotations(), doc?.selectedId ?? null, editing?.isNew ? undefined : editing?.draft.id);
+  updatePanels();
 }
 
 function select(id: string | null) {
-  selectedId = id;
+  if (!doc) return;
+  doc.selectedId = id;
   const a = selected();
   if (a) style = { ...style, ...styleFor(a.kind, a as Partial<Style>) };
+  updateDraftFactory();
   refresh();
 }
 
 function setTool(next: Tool) {
+  finishEditing();
   tool = next;
   stageEl.className = `tool-${tool}`;
-  canvas.tool = tool;
+  if (canvas) canvas.tool = tool;
   updateDraftFactory();
   refresh();
 }
@@ -103,12 +150,13 @@ function setStyle(change: Partial<Style>) {
   if (a && Object.keys(relevant).length > 0) {
     update(a.id, relevant);
   } else {
-    updateToolbar();
+    updatePanels();
   }
 }
 
 /** What dragging on the background creates with the current tool. */
 function updateDraftFactory() {
+  if (!canvas) return;
   const { color, size } = style;
   switch (tool) {
     case "arrow":
@@ -126,14 +174,7 @@ function updateDraftFactory() {
       });
       break;
     case "frame":
-      canvas.draftFactory = (s, e) => ({
-        kind: "frame",
-        id: newId(),
-        ...spanRect(s, e),
-        color,
-        size,
-        shape: style.shape,
-      });
+      canvas.draftFactory = (s, e) => ({ kind: "frame", id: newId(), ...spanRect(s, e), color, size, shape: style.shape });
       break;
     case "redact":
       canvas.draftFactory = (s, e) => ({
@@ -146,14 +187,7 @@ function updateDraftFactory() {
       });
       break;
     case "spotlight":
-      canvas.draftFactory = (s, e) => ({
-        kind: "spotlight",
-        id: newId(),
-        ...spanRect(s, e),
-        color,
-        size,
-        shape: style.shape,
-      });
+      canvas.draftFactory = (s, e) => ({ kind: "spotlight", id: newId(), ...spanRect(s, e), color, size, shape: style.shape });
       break;
     case "marker":
       // Click: plain marker (onBackgroundClick). Drag: marker with pointer.
@@ -174,24 +208,133 @@ function updateDraftFactory() {
   }
 }
 
-/** Kind whose options the toolbar shows: the selection, else the tool. */
+/** Kind whose options the panel shows: the selection, else the tool. */
 function contextKind(): Kind | "none" {
   return selected()?.kind ?? (tool === "select" ? "none" : tool);
 }
 
 function deleteSelected() {
-  if (!selectedId) return;
-  commit(annotations().filter((a) => a.id !== selectedId));
+  if (!doc?.selectedId) return;
+  const id = doc.selectedId;
+  commit(annotations().filter((a) => a.id !== id));
 }
 
 function undo() {
-  history.undo();
+  if (!doc) return;
+  finishEditing();
+  doc.history.undo();
   refresh();
+  scheduleSave();
 }
 
 function redo() {
-  history.redo();
+  if (!doc) return;
+  finishEditing();
+  doc.history.redo();
   refresh();
+  scheduleSave();
+}
+
+// ------------------------------------------------------------ documents ---
+
+async function loadDoc(id: number): Promise<Doc> {
+  const image = new Image();
+  image.crossOrigin = "anonymous"; // keeps the canvas exportable
+  image.src = storedImageUrl(`capture-${id}.png`);
+  await image.decode();
+
+  let saved: Annotation[] = [];
+  const json = await invoke<string | null>("load_annotations", { id });
+  if (json) {
+    try {
+      saved = JSON.parse(json);
+    } catch {
+      saved = [];
+    }
+  }
+  return { id, image, history: new History<readonly Annotation[]>(saved), selectedId: null, thumb: image.src };
+}
+
+function switchTo(next: Doc | null) {
+  finishEditing();
+  flushSave();
+  canvas?.destroy();
+  canvas = null;
+  doc = next;
+
+  $("#empty").hidden = !!next;
+  stageEl.hidden = !next;
+  if (next) {
+    canvas = new AnnotationCanvas(stageEl, next.image, window.devicePixelRatio, {
+      onBackgroundClick,
+      onSelect: select,
+      onTranslate,
+      onUpdate: update,
+      onEditText,
+      onDraw,
+    });
+    canvas.tool = tool;
+    updateDraftFactory();
+    layout();
+  }
+  refresh();
+  if (canvas && next && next.history.present.length > 0) {
+    next.thumb = canvas.thumbnail(THUMB_SIZE.width, THUMB_SIZE.height);
+  }
+  renderStrip();
+}
+
+async function removeDoc(id: number) {
+  const index = docs.findIndex((d) => d.id === id);
+  if (index < 0) return;
+  await invoke("remove_capture", { id });
+  const [removed] = docs.splice(index, 1);
+  if (removed === doc) {
+    doc = null; // already gone; nothing to save
+    switchTo(docs[Math.min(index, docs.length - 1)] ?? null);
+  } else {
+    renderStrip();
+  }
+}
+
+/** Persists annotations and refreshes the thumbnail, debounced. */
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(flushSave, SAVE_DELAY_MS);
+}
+
+function flushSave() {
+  if (saveTimer === undefined) return;
+  clearTimeout(saveTimer);
+  saveTimer = undefined;
+  if (!doc || !canvas) return;
+  void invoke("save_annotations", { id: doc.id, json: JSON.stringify(doc.history.present) });
+  doc.thumb = canvas.thumbnail(THUMB_SIZE.width, THUMB_SIZE.height);
+  const img = document.querySelector<HTMLImageElement>(`.thumb[data-id="${doc.id}"] img`);
+  if (img) img.src = doc.thumb;
+}
+
+function renderStrip() {
+  const thumbs = $<HTMLDivElement>("#thumbs");
+  thumbs.innerHTML = "";
+  docs.forEach((d, i) => {
+    const item = document.createElement("div");
+    item.className = "thumb";
+    item.dataset.id = String(d.id);
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(d === doc));
+    item.setAttribute("aria-label", `Aufnahme ${i + 1}`);
+    item.innerHTML = `<img alt="" src="${d.thumb}"><button class="remove" aria-label="Aufnahme entfernen">×</button>`;
+    item.addEventListener("click", () => {
+      if (d !== doc) switchTo(d);
+    });
+    item.querySelector(".remove")!.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void removeDoc(d.id);
+    });
+    thumbs.append(item);
+  });
+  thumbs.querySelector('[aria-selected="true"]')?.scrollIntoView({ inline: "nearest", block: "nearest" });
 }
 
 // --------------------------------------------------------------- canvas ---
@@ -204,11 +347,11 @@ function onBackgroundClick(p: Point) {
       { kind: "marker", id: newId(), x: p.x, y: p.y, color, size, label: nextMarkerLabel(annotations(), style.markerKind) },
     ]);
   } else if (tool === "text") {
-    if (selectedId) select(null);
+    if (doc?.selectedId) select(null);
     startEditing({ kind: "text", id: newId(), x: p.x, y: p.y, color, size, boxed: style.boxed, text: "" }, true);
-  } else if (tool === "magnifier") {
+  } else if (tool === "magnifier" && doc && canvas) {
     const id = newId();
-    selectedId = id;
+    doc.selectedId = id;
     commit([
       ...annotations(),
       {
@@ -231,7 +374,7 @@ function onBackgroundClick(p: Point) {
 
 function onDraw(annotation: Annotation) {
   // Markers are placed in series; keep them unselected like plain clicks.
-  if (annotation.kind !== "marker") selectedId = annotation.id;
+  if (annotation.kind !== "marker" && doc) doc.selectedId = annotation.id;
   commit([...annotations(), annotation]);
 }
 
@@ -249,12 +392,13 @@ function onEditText(id: string) {
 }
 
 function layout() {
-  canvas.fit(stageArea.clientWidth - 2 * STAGE_MARGIN, stageArea.clientHeight - 2 * STAGE_MARGIN);
+  canvas?.fit(stageArea.clientWidth - 2 * STAGE_MARGIN, stageArea.clientHeight - 2 * STAGE_MARGIN);
 }
 
 // --------------------------------------------------------- text editing ---
 
 function startEditing(draft: TextNote, isNew: boolean) {
+  if (!canvas) return;
   if (editing) finishEditing();
 
   const textarea = document.createElement("textarea");
@@ -308,8 +452,8 @@ function finishEditing() {
 
   const text = textarea.value.replace(/\s+$/, "");
   if (isNew) {
-    if (text) {
-      selectedId = draft.id;
+    if (text && doc) {
+      doc.selectedId = draft.id;
       commit([...annotations(), { ...draft, text }]);
     } else {
       refresh();
@@ -326,6 +470,7 @@ function finishEditing() {
 // --------------------------------------------------------------- output ---
 
 async function renderPng(): Promise<Uint8Array> {
+  if (!canvas) throw new Error("Keine Aufnahme geöffnet");
   const blob = await canvas.exportPng();
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -360,6 +505,7 @@ async function saveTo(path: string) {
 
 async function saveAs() {
   finishEditing();
+  if (!doc) return;
   const path = await save({
     defaultPath: defaultFileName(),
     filters: [{ name: "PNG-Bild", extensions: ["png"] }],
@@ -377,9 +523,9 @@ function toast(message: string, error = false) {
   toastTimer = window.setTimeout(() => el.classList.remove("visible"), error ? 5000 : 2500);
 }
 
-// -------------------------------------------------------------- toolbar ---
+// --------------------------------------------------------------- panels ---
 
-function buildToolbar() {
+function buildPanels() {
   const colors = $<HTMLDivElement>("#colors");
   for (const c of COLORS) {
     const button = document.createElement("button");
@@ -391,33 +537,18 @@ function buildToolbar() {
     colors.append(button);
   }
 
-  document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) =>
-    b.addEventListener("click", () => setTool(b.dataset.tool as Tool)),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-color]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ color: b.dataset.color })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ size: b.dataset.size as Size })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-heads]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ heads: b.dataset.heads as HeadPosition })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-head-style]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ headStyle: b.dataset.headStyle as HeadStyle })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-shape]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ shape: b.dataset.shape as FrameShape })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-marker-kind]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ markerKind: b.dataset.markerKind as MarkerKind })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-redact-mode]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ redactMode: b.dataset.redactMode as RedactMode })),
-  );
-  document.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach((b) =>
-    b.addEventListener("click", () => setStyle({ zoom: Number(b.dataset.zoom) })),
-  );
+  const on = (selector: string, handler: (el: HTMLElement) => void) =>
+    document.querySelectorAll<HTMLElement>(selector).forEach((el) => el.addEventListener("click", () => handler(el)));
+
+  on("[data-tool]", (el) => setTool(el.dataset.tool as Tool));
+  on("[data-color]", (el) => setStyle({ color: el.dataset.color }));
+  on("[data-size]", (el) => setStyle({ size: el.dataset.size as Size }));
+  on("[data-heads]", (el) => setStyle({ heads: el.dataset.heads as HeadPosition }));
+  on("[data-head-style]", (el) => setStyle({ headStyle: el.dataset.headStyle as HeadStyle }));
+  on("[data-shape]", (el) => setStyle({ shape: el.dataset.shape as FrameShape }));
+  on("[data-marker-kind]", (el) => setStyle({ markerKind: el.dataset.markerKind as MarkerKind }));
+  on("[data-redact-mode]", (el) => setStyle({ redactMode: el.dataset.redactMode as RedactMode }));
+  on("[data-zoom]", (el) => setStyle({ zoom: Number(el.dataset.zoom) }));
   $<HTMLInputElement>("#boxed").addEventListener("change", (e) =>
     setStyle({ boxed: (e.target as HTMLInputElement).checked }),
   );
@@ -429,6 +560,9 @@ function buildToolbar() {
   $("#copy").addEventListener("click", () => void copyToClipboard());
   $("#save").addEventListener("click", () => void saveTo(defaultFileName()));
   $("#save-as").addEventListener("click", () => void saveAs());
+  $("#delete").addEventListener("click", deleteSelected);
+  $("#new-capture").addEventListener("click", () => void invoke("start_capture"));
+  $("#empty-capture").addEventListener("click", () => void invoke("start_capture"));
 
   // Buttons must not steal keyboard focus from the editor shortcuts.
   document.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (e) => e.preventDefault()));
@@ -469,8 +603,9 @@ function setupTooltips() {
           Math.max(4, r.left + r.width / 2 - tip.offsetWidth / 2),
           window.innerWidth - tip.offsetWidth - 4,
         );
+        const below = r.bottom + 6 + tip.offsetHeight < window.innerHeight;
         tip.style.left = `${left}px`;
-        tip.style.top = `${r.bottom + 6}px`;
+        tip.style.top = `${below ? r.bottom + 6 : r.top - tip.offsetHeight - 6}px`;
       }, TOOLTIP_DELAY_MS);
     });
     el.addEventListener("mouseleave", hide);
@@ -478,7 +613,7 @@ function setupTooltips() {
   });
 }
 
-function updateToolbar() {
+function updatePanels() {
   const check = (selector: string, isOn: (el: HTMLElement) => boolean) =>
     document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
       el.setAttribute("role", "radio");
@@ -500,34 +635,37 @@ function updateToolbar() {
   document.querySelectorAll<HTMLElement>("[data-for]").forEach((el) => {
     el.hidden = !el.dataset.for!.split(" ").includes(kind);
   });
-  $<HTMLButtonElement>("#undo").disabled = !history.canUndo;
-  $<HTMLButtonElement>("#redo").disabled = !history.canRedo;
-}
 
-/**
- * Widens the window so the toolbar fits for every tool, and makes that the
- * minimum width. The toolbar's options vary by tool, so measure each variant.
- */
-async function fitWindowToToolbar() {
-  const toolbar = $<HTMLElement>("#toolbar");
-  const contextual = [...document.querySelectorAll<HTMLElement>("[data-for]")];
-  const kinds = new Set(contextual.flatMap((el) => el.dataset.for!.split(" ")));
+  const sel = selected();
+  $("#props-title").textContent = sel ? `Ausgewählt: ${TOOL_NAMES[sel.kind]}` : TOOL_NAMES[tool];
+  $("#props-hint").textContent = sel
+    ? "Änderungen gelten für das ausgewählte Element. Entf löscht es, Esc hebt die Auswahl auf."
+    : TOOL_HINTS[tool];
+  $("#size-label").textContent = (kind !== "none" && SIZE_LABELS[kind]) || "Größe";
+  $("#delete").hidden = !sel;
 
-  let needed = 0;
-  for (const kind of kinds) {
-    for (const el of contextual) el.hidden = !el.dataset.for!.split(" ").includes(kind);
-    needed = Math.max(needed, toolbar.scrollWidth);
-  }
-  updateToolbar();
+  $<HTMLButtonElement>("#undo").disabled = !doc?.history.canUndo;
+  $<HTMLButtonElement>("#redo").disabled = !doc?.history.canRedo;
+  for (const id of ["#copy", "#save", "#save-as"]) $<HTMLButtonElement>(id).disabled = !doc;
 
-  const win = getCurrentWindow();
-  await win.setMinSize(new LogicalSize(needed, MIN_WINDOW_HEIGHT));
-  if (window.innerWidth < needed) {
-    await win.setSize(new LogicalSize(needed, window.innerHeight));
-  }
+  const index = doc ? docs.indexOf(doc) : -1;
+  $("#doc-title").textContent = doc
+    ? `Aufnahme ${index + 1} von ${docs.length} · ${doc.image.naturalWidth} × ${doc.image.naturalHeight} px`
+    : "";
 }
 
 // ------------------------------------------------------------- keyboard ---
+
+const TOOL_KEYS: Record<string, Tool> = {
+  v: "select",
+  n: "marker",
+  t: "text",
+  a: "arrow",
+  r: "frame",
+  b: "spotlight",
+  u: "redact",
+  l: "magnifier",
+};
 
 window.addEventListener("keydown", (e) => {
   if (editing) return;
@@ -554,55 +692,46 @@ window.addEventListener("keydown", (e) => {
     deleteSelected();
   } else if (key === "escape") {
     select(null);
-  } else if (key === "v") {
-    setTool("select");
-  } else if (key === "n") {
-    setTool("marker");
-  } else if (key === "t") {
-    setTool("text");
-  } else if (key === "a") {
-    setTool("arrow");
-  } else if (key === "l") {
-    setTool("magnifier");
-  } else if (key === "r") {
-    setTool("frame");
-  } else if (key === "u") {
-    setTool("redact");
-  } else if (key === "b") {
-    setTool("spotlight");
+  } else if (TOOL_KEYS[key]) {
+    setTool(TOOL_KEYS[key]);
   } else if (key === "enter" && selected()?.kind === "text") {
-    onEditText(selectedId!);
+    onEditText(doc!.selectedId!);
   }
 });
 
 // ----------------------------------------------------------------- init ---
 
 async function init() {
-  const id = getCurrentWindow().label.replace(/^editor-/, "");
-  const image = new Image();
-  image.crossOrigin = "anonymous"; // keeps the canvas exportable
-  image.src = storedImageUrl(`capture-${id}.png`);
-  await image.decode();
+  buildPanels();
+  setTool(tool);
 
-  canvas = new AnnotationCanvas(stageEl, image, window.devicePixelRatio, {
-    onBackgroundClick,
-    onSelect: select,
-    onTranslate,
-    onUpdate: update,
-    onEditText,
-    onDraw,
+  // Captures arriving while the editor is open.
+  await listen<number>("capture-added", async (event) => {
+    try {
+      const d = await loadDoc(event.payload);
+      docs.push(d);
+      switchTo(d);
+    } catch (e) {
+      toast(`Aufnahme konnte nicht geladen werden: ${e}`, true);
+    }
   });
 
-  buildToolbar();
-  setTool(tool);
-  layout();
-  refresh();
-  await fitWindowToToolbar();
+  const ids = await invoke<number[]>("list_captures");
+  for (const id of ids) {
+    try {
+      docs.push(await loadDoc(id));
+    } catch (e) {
+      toast(`Aufnahme konnte nicht geladen werden: ${e}`, true);
+    }
+  }
+  switchTo(docs[docs.length - 1] ?? null);
+
   window.addEventListener("resize", () => {
     finishEditing();
     layout();
     refresh(); // hit areas depend on the display scale
   });
+  window.addEventListener("beforeunload", flushSave);
 }
 
-init().catch((e) => toast(`Bild konnte nicht geladen werden: ${e}`, true));
+init().catch((e) => toast(`Editor konnte nicht starten: ${e}`, true));

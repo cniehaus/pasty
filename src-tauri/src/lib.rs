@@ -101,11 +101,24 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+Shift+2"), // display hint only
     )?;
+    let editor_item = MenuItem::with_id(app, "editor", "Editor öffnen", true, None::<&str>)?;
     let logs = MenuItem::with_id(app, "logs", "Protokoll öffnen", true, None::<&str>)?;
     let restart = MenuItem::with_id(app, "restart", "Pasta neu starten", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Pasta beenden", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&capture, &separator, &logs, &restart, &quit])?;
+    let separator2 = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &capture,
+            &editor_item,
+            &separator,
+            &logs,
+            &restart,
+            &separator2,
+            &quit,
+        ],
+    )?;
 
     let (icon, is_template) = tray_icon(app)?;
     TrayIconBuilder::with_id("pasta-tray")
@@ -116,6 +129,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => start_capture(app),
+            "editor" => editor::show(app),
             "logs" => open_log_dir(app),
             "restart" => app.restart(),
             "quit" => app.exit(0),
@@ -140,6 +154,11 @@ pub fn run() {
             overlay::finish_selection,
             export::copy_png,
             export::save_png,
+            editor::list_captures,
+            editor::remove_capture,
+            editor::save_annotations,
+            editor::load_annotations,
+            editor::start_capture,
         ])
         .plugin(
             tauri_plugin_log::Builder::new()

@@ -9,144 +9,189 @@
     <script type="module" src="/src/editor/main.ts"></script>
   </head>
   <body>
-    <header class="toolbar" id="toolbar">
-      <div class="group" role="radiogroup" aria-label="Werkzeug">
-        <button class="tool" data-tool="select" title="Auswählen (V)" aria-label="Auswählen">
-          <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" /></svg>
-        </button>
-        <button class="tool" data-tool="marker" title="Nummer oder Buchstabe (N)" aria-label="Nummer oder Buchstabe">
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M10.5 9l2-1.5V16" />
-          </svg>
-        </button>
-        <button class="tool" data-tool="text" title="Text (T)" aria-label="Text">
-          <svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6" /></svg>
-        </button>
-        <button class="tool" data-tool="arrow" title="Pfeil (A)" aria-label="Pfeil">
-          <svg viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9" /></svg>
-        </button>
-        <button class="tool" data-tool="frame" title="Rahmen (R)" aria-label="Rahmen">
-          <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" /></svg>
-        </button>
-        <button class="tool" data-tool="redact" title="Unkenntlich machen (U)" aria-label="Unkenntlich machen">
-          <svg viewBox="0 0 24 24">
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-            <path class="fill" d="M4 4h4v4H4zM12 4h4v4h-4zM8 8h4v4H8zM16 8h4v4h-4zM4 12h4v4H4zM12 12h4v4h-4zM8 16h4v4H8zM16 16h4v4h-4z" />
-          </svg>
-        </button>
-        <button class="tool" data-tool="spotlight" title="Betonen (B)" aria-label="Betonen">
-          <svg viewBox="0 0 24 24">
-            <path class="dim" d="M2 4h20v16H2z" />
-            <rect class="bright" x="7" y="8" width="10" height="8" rx="1.5" />
-          </svg>
-        </button>
-        <button class="tool" data-tool="magnifier" title="Lupe (L)" aria-label="Lupe">
-          <svg viewBox="0 0 24 24">
-            <circle cx="10.5" cy="10.5" r="6.5" />
-            <path d="M15.5 15.5L20 20M8 10.5h5M10.5 8v5" />
-          </svg>
-        </button>
-      </div>
-
-      <div class="separator"></div>
-
-      <div class="group" id="colors" role="radiogroup" aria-label="Farbe" data-for="none marker text arrow frame redact"></div>
-
-      <div class="group segmented" role="radiogroup" aria-label="Größe">
-        <button data-size="s" title="Klein">S</button>
-        <button data-size="m" title="Mittel">M</button>
-        <button data-size="l" title="Groß">L</button>
-      </div>
-
-      <div class="group segmented" role="radiogroup" aria-label="Zählweise" data-for="marker">
-        <button data-marker-kind="number" title="Zahlen 1, 2, 3 …">1 2 3</button>
-        <button data-marker-kind="letter" title="Buchstaben A, B, C …">A B C</button>
-      </div>
-
-      <label class="toggle" data-for="text" title="Text mit weißem Kasten hinterlegen">
-        <input type="checkbox" id="boxed" />
-        Kasten
-      </label>
-
-      <div class="group segmented" role="radiogroup" aria-label="Pfeilspitzen" data-for="arrow">
-        <button data-heads="end" title="Spitze am Ende" aria-label="Spitze am Ende">
-          <svg viewBox="0 0 24 24"><path d="M4 12h15M15 8l4 4-4 4" /></svg>
-        </button>
-        <button data-heads="start" title="Spitze am Anfang" aria-label="Spitze am Anfang">
-          <svg viewBox="0 0 24 24"><path d="M5 12h15M9 8l-4 4 4 4" /></svg>
-        </button>
-        <button data-heads="both" title="Spitzen an beiden Enden" aria-label="Spitzen an beiden Enden">
-          <svg viewBox="0 0 24 24"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg>
-        </button>
-        <button data-heads="none" title="Keine Spitze (Linie)" aria-label="Keine Spitze">
-          <svg viewBox="0 0 24 24"><path d="M4 12h16" /></svg>
-        </button>
-      </div>
-
-      <div class="group segmented" role="radiogroup" aria-label="Form der Spitze" data-for="arrow">
-        <button data-head-style="filled" title="Gefülltes Dreieck" aria-label="Gefülltes Dreieck">
-          <svg viewBox="0 0 24 24"><path d="M4 12h9" /><path class="fill" d="M13 7l7 5-7 5z" /></svg>
-        </button>
-        <button data-head-style="open" title="Offene Spitze" aria-label="Offene Spitze">
-          <svg viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5" /></svg>
-        </button>
-        <button data-head-style="dot" title="Punkt" aria-label="Punkt">
-          <svg viewBox="0 0 24 24"><path d="M4 12h11" /><circle class="fill" cx="17" cy="12" r="3.5" /></svg>
-        </button>
-      </div>
-
-      <div class="group segmented" role="radiogroup" aria-label="Methode" data-for="redact">
-        <button data-redact-mode="pixelate" title="Verpixeln">Pixeln</button>
-        <button data-redact-mode="blur" title="Weichzeichnen">Unschärfe</button>
-        <button data-redact-mode="solid" title="Mit Farbe abdecken (am sichersten)">Schwärzen</button>
-      </div>
-
-      <div class="group segmented" role="radiogroup" aria-label="Form" data-for="frame spotlight">
-        <button data-shape="rect" title="Rechteck" aria-label="Rechteck">
-          <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" /></svg>
-        </button>
-        <button data-shape="ellipse" title="Ellipse" aria-label="Ellipse">
-          <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6" /></svg>
-        </button>
-      </div>
-
-      <div class="group segmented" role="radiogroup" aria-label="Vergrößerung" data-for="magnifier">
-        <button data-zoom="1.5" title="1,5-fach">1,5×</button>
-        <button data-zoom="2" title="2-fach">2×</button>
-        <button data-zoom="3" title="3-fach">3×</button>
-      </div>
-
-      <label class="toggle" data-for="magnifier" title="Alles außerhalb der Lupe unscharf darstellen">
-        <input type="checkbox" id="blur-outside" />
-        Rest unscharf
-      </label>
-
-      <div class="spacer"></div>
-
+    <!-- Top bar: history and output -->
+    <header class="topbar">
       <div class="group">
-        <button id="undo" title="Rückgängig (⌘Z)" aria-label="Rückgängig">
+        <button id="undo" class="icon" title="Rückgängig (⌘Z)" aria-label="Rückgängig">
           <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3" /></svg>
         </button>
-        <button id="redo" title="Wiederholen (⇧⌘Z)" aria-label="Wiederholen">
+        <button id="redo" class="icon" title="Wiederholen (⇧⌘Z)" aria-label="Wiederholen">
           <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3" /></svg>
         </button>
       </div>
-
-      <div class="separator"></div>
-
+      <div class="doc-title" id="doc-title"></div>
       <div class="group">
         <button id="save-as" class="text-button" title="Speichern unter … (⇧⌘S)">Speichern unter …</button>
         <button id="save" class="text-button" title="In Bilder/Pasta speichern (⌘S)">Speichern</button>
-        <button id="copy" class="text-button primary" title="In die Zwischenablage kopieren (⌘C)">
-          Kopieren
-        </button>
+        <button id="copy" class="text-button primary" title="In die Zwischenablage kopieren (⌘C)">Kopieren</button>
       </div>
     </header>
 
+    <!-- Left: tools -->
+    <nav class="tools" role="radiogroup" aria-label="Werkzeug">
+      <button class="tool" data-tool="select">
+        <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" /></svg>
+        <span>Auswählen</span><kbd>V</kbd>
+      </button>
+      <button class="tool" data-tool="marker">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M10.5 9l2-1.5V16" /></svg>
+        <span>Nummer</span><kbd>N</kbd>
+      </button>
+      <button class="tool" data-tool="text">
+        <svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6" /></svg>
+        <span>Text</span><kbd>T</kbd>
+      </button>
+      <button class="tool" data-tool="arrow">
+        <svg viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9" /></svg>
+        <span>Pfeil</span><kbd>A</kbd>
+      </button>
+      <button class="tool" data-tool="frame">
+        <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" /></svg>
+        <span>Rahmen</span><kbd>R</kbd>
+      </button>
+      <button class="tool" data-tool="spotlight">
+        <svg viewBox="0 0 24 24">
+          <path class="dim" d="M2 4h20v16H2z" />
+          <rect class="bright" x="7" y="8" width="10" height="8" rx="1.5" />
+        </svg>
+        <span>Betonen</span><kbd>B</kbd>
+      </button>
+      <button class="tool" data-tool="redact">
+        <svg viewBox="0 0 24 24">
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <path class="fill" d="M4 4h4v4H4zM12 4h4v4h-4zM8 8h4v4H8zM16 8h4v4h-4zM4 12h4v4H4zM12 12h4v4h-4zM8 16h4v4H8zM16 16h4v4h-4z" />
+        </svg>
+        <span>Unkenntlich</span><kbd>U</kbd>
+      </button>
+      <button class="tool" data-tool="magnifier">
+        <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L20 20M8 10.5h5M10.5 8v5" /></svg>
+        <span>Lupe</span><kbd>L</kbd>
+      </button>
+    </nav>
+
+    <!-- Centre: image -->
     <main class="stage" id="stage-area">
       <div id="stage"></div>
+      <div class="empty" id="empty" hidden>
+        <p>Keine Aufnahmen</p>
+        <button class="text-button primary" id="empty-capture">Bereich aufnehmen</button>
+      </div>
     </main>
+
+    <!-- Right: settings for the current tool or selection -->
+    <aside class="props" aria-label="Einstellungen">
+      <h2 id="props-title">Einstellungen</h2>
+      <p class="hint" id="props-hint"></p>
+
+      <section class="props-section">
+        <h3>Allgemein</h3>
+
+        <div class="row" data-for="none marker text arrow frame redact">
+          <span class="label">Farbe</span>
+          <div class="swatches" id="colors" role="radiogroup" aria-label="Farbe"></div>
+        </div>
+
+        <div class="row" data-for="none marker text arrow frame redact spotlight magnifier">
+          <span class="label" id="size-label">Größe</span>
+          <div class="segmented" role="radiogroup" aria-label="Größe">
+            <button data-size="s">S</button>
+            <button data-size="m">M</button>
+            <button data-size="l">L</button>
+          </div>
+        </div>
+
+        <div class="row" data-for="marker">
+          <span class="label">Zählweise</span>
+          <div class="segmented" role="radiogroup" aria-label="Zählweise">
+            <button data-marker-kind="number">1 2 3</button>
+            <button data-marker-kind="letter">A B C</button>
+          </div>
+        </div>
+
+        <label class="row check" data-for="text">
+          <span class="label">Kasten</span>
+          <input type="checkbox" id="boxed" />
+        </label>
+
+        <div class="row" data-for="arrow">
+          <span class="label">Spitze</span>
+          <div class="segmented" role="radiogroup" aria-label="Pfeilspitzen">
+            <button data-heads="end" title="Am Ende" aria-label="Am Ende">
+              <svg viewBox="0 0 24 24"><path d="M4 12h15M15 8l4 4-4 4" /></svg>
+            </button>
+            <button data-heads="start" title="Am Anfang" aria-label="Am Anfang">
+              <svg viewBox="0 0 24 24"><path d="M5 12h15M9 8l-4 4 4 4" /></svg>
+            </button>
+            <button data-heads="both" title="An beiden Enden" aria-label="An beiden Enden">
+              <svg viewBox="0 0 24 24"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg>
+            </button>
+            <button data-heads="none" title="Keine (Linie)" aria-label="Keine Spitze">
+              <svg viewBox="0 0 24 24"><path d="M4 12h16" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row" data-for="arrow">
+          <span class="label">Form der Spitze</span>
+          <div class="segmented" role="radiogroup" aria-label="Form der Spitze">
+            <button data-head-style="filled" title="Gefüllt" aria-label="Gefüllt">
+              <svg viewBox="0 0 24 24"><path d="M4 12h9" /><path class="fill" d="M13 7l7 5-7 5z" /></svg>
+            </button>
+            <button data-head-style="open" title="Offen" aria-label="Offen">
+              <svg viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5" /></svg>
+            </button>
+            <button data-head-style="dot" title="Punkt" aria-label="Punkt">
+              <svg viewBox="0 0 24 24"><path d="M4 12h11" /><circle class="fill" cx="17" cy="12" r="3.5" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row" data-for="frame spotlight">
+          <span class="label">Form</span>
+          <div class="segmented" role="radiogroup" aria-label="Form">
+            <button data-shape="rect" title="Rechteck" aria-label="Rechteck">
+              <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" /></svg>
+            </button>
+            <button data-shape="ellipse" title="Ellipse" aria-label="Ellipse">
+              <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row" data-for="redact">
+          <span class="label">Methode</span>
+          <div class="segmented" role="radiogroup" aria-label="Methode">
+            <button data-redact-mode="pixelate">Pixeln</button>
+            <button data-redact-mode="blur">Unschärfe</button>
+            <button data-redact-mode="solid" title="Am sichersten">Schwärzen</button>
+          </div>
+        </div>
+
+        <div class="row" data-for="magnifier">
+          <span class="label">Vergrößerung</span>
+          <div class="segmented" role="radiogroup" aria-label="Vergrößerung">
+            <button data-zoom="1.5">1,5×</button>
+            <button data-zoom="2">2×</button>
+            <button data-zoom="3">3×</button>
+          </div>
+        </div>
+
+        <label class="row check" data-for="magnifier">
+          <span class="label">Rest unscharf</span>
+          <input type="checkbox" id="blur-outside" />
+        </label>
+      </section>
+
+      <button class="text-button danger" id="delete" hidden>Element löschen</button>
+    </aside>
+
+    <!-- Bottom: film strip of recent captures -->
+    <footer class="strip" aria-label="Letzte Aufnahmen">
+      <div class="thumbs" id="thumbs" role="listbox" aria-label="Aufnahmen"></div>
+      <button class="new-capture" id="new-capture" title="Neue Aufnahme (⌘⇧2)" aria-label="Neue Aufnahme">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
+    </footer>
 
     <div id="toast" role="status" aria-live="polite"></div>
     <div id="tooltip" role="tooltip"></div>

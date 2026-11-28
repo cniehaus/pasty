@@ -15,12 +15,12 @@ use std::{
 use image::RgbaImage;
 
 pub const FROZEN_PATH: &str = "frozen.png";
+/// Captures kept for the editor's film strip; older ones are dropped.
+pub const MAX_CAPTURES: usize = 20;
 
 /// Full-monitor snapshot shown in the selection overlay.
 pub struct FrozenScreen {
     pub image: RgbaImage,
-    /// Physical pixels per logical point of the captured monitor.
-    pub scale_factor: f64,
 }
 
 #[derive(Default)]
@@ -28,6 +28,11 @@ pub struct ImageStore {
     frozen: Mutex<Option<FrozenScreen>>,
     files: Mutex<HashMap<String, Arc<Vec<u8>>>>,
     next_capture_id: AtomicU32,
+    /// Capture ids, oldest first.
+    captures: Mutex<Vec<u32>>,
+    /// Editor annotations per capture (JSON owned by the frontend), so they
+    /// survive closing the editor window.
+    annotations: Mutex<HashMap<u32, String>>,
 }
 
 impl ImageStore {
@@ -42,15 +47,54 @@ impl ImageStore {
         self.frozen.lock().expect("store poisoned").take()
     }
 
-    /// Stores a finished capture and returns its id.
+    /// Stores a finished capture and returns its id. Drops the oldest
+    /// captures beyond [`MAX_CAPTURES`].
     pub fn add_capture(&self, png: Vec<u8>) -> u32 {
         let id = self.next_capture_id.fetch_add(1, Ordering::Relaxed) + 1;
         self.insert(capture_path(id), png);
+        let dropped: Vec<u32> = {
+            let mut captures = self.captures.lock().expect("store poisoned");
+            captures.push(id);
+            let excess = captures.len().saturating_sub(MAX_CAPTURES);
+            captures.drain(..excess).collect()
+        };
+        for old in dropped {
+            self.forget(old);
+        }
         id
     }
 
     pub fn remove_capture(&self, id: u32) {
+        self.captures
+            .lock()
+            .expect("store poisoned")
+            .retain(|&c| c != id);
+        self.forget(id);
+    }
+
+    /// Capture ids, oldest first.
+    pub fn captures(&self) -> Vec<u32> {
+        self.captures.lock().expect("store poisoned").clone()
+    }
+
+    pub fn set_annotations(&self, id: u32, json: String) {
+        self.annotations
+            .lock()
+            .expect("store poisoned")
+            .insert(id, json);
+    }
+
+    pub fn annotations(&self, id: u32) -> Option<String> {
+        self.annotations
+            .lock()
+            .expect("store poisoned")
+            .get(&id)
+            .cloned()
+    }
+
+    fn forget(&self, id: u32) {
         self.remove(&capture_path(id));
+        self.annotations.lock().expect("store poisoned").remove(&id);
     }
 
     pub fn get(&self, path: &str) -> Option<Arc<Vec<u8>>> {
@@ -94,11 +138,26 @@ mod tests {
     }
 
     #[test]
+    fn keeps_only_the_newest_captures() {
+        let store = ImageStore::default();
+        let first = store.add_capture(vec![0]);
+        store.set_annotations(first, "[]".into());
+        let rest: Vec<u32> = (0..MAX_CAPTURES + 1)
+            .map(|i| store.add_capture(vec![i as u8]))
+            .collect();
+
+        let kept = store.captures();
+        assert_eq!(kept.len(), MAX_CAPTURES);
+        assert_eq!(kept.first(), Some(&rest[1]));
+        assert!(store.get(&capture_path(first)).is_none());
+        assert!(store.annotations(first).is_none());
+    }
+
+    #[test]
     fn take_frozen_clears_the_served_png() {
         let store = ImageStore::default();
         let frozen = FrozenScreen {
             image: RgbaImage::new(2, 2),
-            scale_factor: 2.0,
         };
         store.set_frozen(frozen, vec![0]);
         assert!(store.get(FROZEN_PATH).is_some());
