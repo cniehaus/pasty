@@ -763,6 +763,8 @@ export class AnnotationCanvas {
   /** Dims everything except the spotlight areas (live node geometry). */
   private drawDimming(ctx: CanvasRenderingContext2D): void {
     if (this.spotlights.length === 0) return;
+    // All spotlights share one strength (kept in sync by the editor); the
+    // strongest wins for data from older versions.
     const opacity = Math.max(...this.spotlights.map((s) => dimOpacity(s.spot.size)));
     ctx.save();
     ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;

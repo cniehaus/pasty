@@ -85,7 +85,7 @@ const TOOL_HINTS: Record<Tool, string> = {
 const SIZE_LABELS: Partial<Record<Kind, string>> = {
   arrow: "Strichstärke",
   frame: "Strichstärke",
-  spotlight: "Abdunklung",
+  spotlight: "Abdunklung (alle Bereiche)",
   redact: "Stärke",
   magnifier: "Ring",
 };
@@ -255,6 +255,15 @@ function setStyle(change: Partial<Style>) {
     return;
   }
 
+  // The dimming around spotlights is shared, so its strength applies to all.
+  if (change.size && contextKind() === "spotlight" && annotations().some((x) => x.kind === "spotlight")) {
+    const size = change.size;
+    const next = annotations().map((x) => (x.kind === "spotlight" ? { ...x, size } : x));
+    if (next.some((x, i) => x !== annotations()[i] && x.size !== annotations()[i].size)) commit(next);
+    else updatePanels();
+    return;
+  }
+
   const a = selected();
   const relevant = a ? styleFor(a.kind, change) : {};
   if (a && Object.keys(relevant).length > 0) {
@@ -307,7 +316,15 @@ function updateDraftFactory() {
       });
       break;
     case "spotlight":
-      canvas.draftFactory = (s, e) => ({ kind: "spotlight", id: newId(), ...spanRect(s, e), color, size, shape: style.shape });
+      // One dimming for the whole image: a new area takes the existing strength.
+      canvas.draftFactory = (s, e) => ({
+        kind: "spotlight",
+        id: newId(),
+        ...spanRect(s, e),
+        color,
+        size: annotations().find((a) => a.kind === "spotlight")?.size ?? size,
+        shape: style.shape,
+      });
       break;
     case "marker":
       // Click: plain marker (onBackgroundClick). Drag: marker with pointer.
