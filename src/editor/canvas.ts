@@ -13,11 +13,13 @@ import {
   type HeadStyle,
   type Magnifier,
   type Marker,
+  type Rect,
   type Redaction,
   type Spotlight,
   type TextNote,
   MAGNIFIER_COLOR,
   contrastColor,
+  cropOf,
   dimOpacity,
   fontSize,
   markerRadius,
@@ -34,6 +36,10 @@ const BLUR_RADIUS = 6;
 /** Minimum drag distance (screen pixels) that counts as drawing. */
 const MIN_DRAG = 6;
 const HANDLE_RADIUS = 6;
+/** Room around the image while cropping, so edge anchors aren't clipped. */
+const CROP_MARGIN = 14;
+/** Smallest crop that a drag creates, in image pixels. */
+const MIN_CROP = 8;
 /** Hit tolerance around thin strokes, in screen pixels. */
 const HIT_TOLERANCE = 14;
 
@@ -97,6 +103,18 @@ export class AnnotationCanvas {
   /** Set after a drag-draw so the trailing click doesn't also act. */
   private suppressClick = false;
   private scale = 1;
+  /** Space the stage may use, from the last `fit` call. */
+  private available = { width: 1, height: 1 };
+  /** Part of the image shown and exported (the crop, or all of it). */
+  private region: Rect;
+  /** Interactive crop frame while the crop tool is active. */
+  private cropUi: {
+    group: Konva.Group;
+    rect: Konva.Rect;
+    transformer: Konva.Transformer;
+    /** Locked aspect ratio (width / height), or null. */
+    ratio: number | null;
+  } | null = null;
 
   constructor(
     container: HTMLDivElement,
@@ -105,6 +123,7 @@ export class AnnotationCanvas {
     private readonly callbacks: CanvasCallbacks,
   ) {
     this.stage = new Konva.Stage({ container, width: 1, height: 1 });
+    this.region = { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight };
 
     const imageLayer = new Konva.Layer({ listening: false });
     this.blurNode = new Konva.Image({ image: undefined, visible: false });
@@ -160,7 +179,7 @@ export class AnnotationCanvas {
 
   /** Small PNG data URL of the annotated image for the film strip. */
   thumbnail(maxWidth: number, maxHeight: number): string {
-    const { naturalWidth: w, naturalHeight: h } = this.image;
+    const { width: w, height: h } = this.shown();
     const ratio = Math.min(maxWidth / w, maxHeight / h, 1) / this.scale;
     this.uiLayer.visible(false);
     try {
@@ -175,12 +194,43 @@ export class AnnotationCanvas {
     return this.scale;
   }
 
-  /** Shows the image at 100 % (logical size) or smaller to fit. */
+  /** Top-left of the visible part in image pixels (for screen mapping). */
+  get viewOrigin(): { x: number; y: number } {
+    const r = this.shown();
+    return { x: r.x, y: r.y };
+  }
+
+  /** Size of the exported image (the crop, or the whole image). */
+  get outputSize(): { width: number; height: number } {
+    return { width: this.region.width, height: this.region.height };
+  }
+
+  /** Shows the visible part at 100 % (logical size) or smaller to fit. */
   fit(availableWidth: number, availableHeight: number): void {
-    const { naturalWidth: w, naturalHeight: h } = this.image;
-    this.scale = Math.min(1 / this.pixelRatio, availableWidth / w, availableHeight / h);
-    this.stage.size({ width: w * this.scale, height: h * this.scale });
+    this.available = { width: availableWidth, height: availableHeight };
+    this.applyFit();
+  }
+
+  private fullImage(): Rect {
+    return { x: 0, y: 0, width: this.image.naturalWidth, height: this.image.naturalHeight };
+  }
+
+  /** While cropping the whole image is shown, otherwise the crop. */
+  private shown(): Rect {
+    return this.cropUi ? this.fullImage() : this.region;
+  }
+
+  private applyFit(): void {
+    const r = this.shown();
+    const m = this.cropUi ? CROP_MARGIN : 0;
+    this.scale = Math.min(
+      1 / this.pixelRatio,
+      (this.available.width - 2 * m) / r.width,
+      (this.available.height - 2 * m) / r.height,
+    );
+    this.stage.size({ width: r.width * this.scale + 2 * m, height: r.height * this.scale + 2 * m });
     this.stage.scale({ x: this.scale, y: this.scale });
+    this.stage.position({ x: m - r.x * this.scale, y: m - r.y * this.scale });
   }
 
   render(annotations: readonly Annotation[], selectedId: string | null, hiddenId?: string): void {
@@ -191,6 +241,13 @@ export class AnnotationCanvas {
     this.redactLayer.destroyChildren();
     this.annotationLayer.destroyChildren();
     this.spotlights = [];
+
+    const crop = cropOf(annotations);
+    const region = crop ? { x: crop.x, y: crop.y, width: crop.width, height: crop.height } : this.fullImage();
+    if (JSON.stringify(region) !== JSON.stringify(this.region)) {
+      this.region = region;
+      this.applyFit();
+    }
 
     this.updateBase(annotations.filter((a): a is Redaction => a.kind === "redact"));
     const blur = annotations.some((a) => a.kind === "magnifier" && a.blurOutside);
@@ -203,7 +260,7 @@ export class AnnotationCanvas {
       ...annotations.filter((a) => a.kind !== "magnifier"),
     ];
     for (const a of ordered) {
-      if (a.id === hiddenId) continue;
+      if (a.id === hiddenId || a.kind === "crop") continue;
       const node = this.createNode(a);
       node.draggable(true);
       // Show where things can be grabbed.
@@ -224,21 +281,211 @@ export class AnnotationCanvas {
 
   /** Renders the annotated image at full resolution. */
   async exportPng(): Promise<Blob> {
-    const { naturalWidth: w, naturalHeight: h } = this.image;
+    const r = this.region;
     this.uiLayer.visible(false);
     this.stage.scale({ x: 1, y: 1 });
-    this.stage.size({ width: w, height: h });
+    this.stage.size({ width: r.width, height: r.height });
+    this.stage.position({ x: -r.x, y: -r.y });
     try {
       const canvas = this.stage.toCanvas({ pixelRatio: 1 });
       return await new Promise((resolve, reject) =>
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("export failed"))), "image/png"),
       );
     } finally {
-      this.stage.scale({ x: this.scale, y: this.scale });
-      this.stage.size({ width: w * this.scale, height: h * this.scale });
+      this.applyFit();
       this.uiLayer.visible(true);
     }
   }
+
+  // --------------------------------------------------------- cropping ---
+
+  /**
+   * Shows the whole image with a movable, resizable crop frame. `onChange`
+   * receives the frame in image pixels whenever it moves.
+   */
+  startCrop(initial: Rect, onChange: (r: Rect) => void): void {
+    this.endCrop();
+    this.transformer.nodes([]);
+    this.redactLayer.listening(false);
+    this.annotationLayer.listening(false);
+
+    const full = this.fullImage();
+    const rect = new Konva.Rect({ ...initial, fill: "rgba(0, 0, 0, 0)", draggable: true, name: "crop-frame" });
+    const live = (): Rect => ({
+      x: rect.x(),
+      y: rect.y(),
+      width: rect.width() * rect.scaleX(),
+      height: rect.height() * rect.scaleY(),
+    });
+    const emit = () => onChange(roundRect(live()));
+
+    const shade = new Konva.Shape({
+      listening: false,
+      sceneFunc: (ctx) => {
+        const c = ctx._context;
+        const r = live();
+        c.save();
+        c.fillStyle = "rgba(0, 0, 0, 0.55)";
+        c.beginPath();
+        c.rect(0, 0, full.width, full.height);
+        c.rect(r.x, r.y, r.width, r.height);
+        c.fill("evenodd");
+        // Rule-of-thirds grid.
+        c.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        c.lineWidth = 1 / this.scale;
+        c.beginPath();
+        for (const f of [1 / 3, 2 / 3]) {
+          c.moveTo(r.x + r.width * f, r.y);
+          c.lineTo(r.x + r.width * f, r.y + r.height);
+          c.moveTo(r.x, r.y + r.height * f);
+          c.lineTo(r.x + r.width, r.y + r.height * f);
+        }
+        c.stroke();
+        c.restore();
+      },
+    });
+
+    const transformer = new Konva.Transformer({
+      nodes: [rect],
+      rotateEnabled: false,
+      flipEnabled: false,
+      keepRatio: false,
+      borderStroke: "#ffffff",
+      borderStrokeWidth: 1.5,
+      anchorStroke: SELECTION_COLOR,
+      anchorFill: "#ffffff",
+      anchorSize: 10,
+      ignoreStroke: true,
+      // Boxes are in stage pixels; the image starts at the crop margin.
+      boundBoxFunc: (oldBox, box) => {
+        const s = this.scale;
+        const m = CROP_MARGIN;
+        const inside =
+          box.x >= m - 0.5 &&
+          box.y >= m - 0.5 &&
+          box.x + box.width <= m + full.width * s + 0.5 &&
+          box.y + box.height <= m + full.height * s + 0.5;
+        return inside && box.width >= 8 && box.height >= 8 ? box : oldBox;
+      },
+    });
+
+    rect.on("dragmove", () => {
+      const r = live();
+      rect.position({
+        x: Math.min(Math.max(0, r.x), full.width - r.width),
+        y: Math.min(Math.max(0, r.y), full.height - r.height),
+      });
+      emit();
+    });
+    rect.on("transform", emit);
+    rect.on("transformend", () => {
+      const r = roundRect(live());
+      rect.setAttrs({ ...r, scaleX: 1, scaleY: 1 });
+      emit();
+    });
+
+    // Dragging outside the frame (or while it still covers the whole
+    // image) draws a new frame; inside a smaller frame it moves the frame.
+    let drawFrom: { x: number; y: number } | null = null;
+    const pointer = () => {
+      const p = this.stage.getRelativePointerPosition() ?? { x: 0, y: 0 };
+      return { x: Math.min(Math.max(0, p.x), full.width), y: Math.min(Math.max(0, p.y), full.height) };
+    };
+    this.stage.on("mousedown.crop touchstart.crop", (e) => {
+      if (transformer.isAncestorOf(e.target)) return;
+      const r = live();
+      const coversAll = r.x <= 0 && r.y <= 0 && r.width >= full.width && r.height >= full.height;
+      if (e.target === rect && !coversAll) return;
+      rect.draggable(false);
+      drawFrom = pointer();
+    });
+    this.stage.on("mousemove.crop touchmove.crop", () => {
+      if (!drawFrom) return;
+      const p = pointer();
+      let width = Math.abs(p.x - drawFrom.x);
+      let height = Math.abs(p.y - drawFrom.y);
+      const ratio = this.cropUi?.ratio ?? null;
+      if (ratio) {
+        // Follow the larger movement, then stay inside the image.
+        if (width / ratio > height) height = width / ratio;
+        else width = height * ratio;
+        const maxW = p.x >= drawFrom.x ? full.width - drawFrom.x : drawFrom.x;
+        const maxH = p.y >= drawFrom.y ? full.height - drawFrom.y : drawFrom.y;
+        const k = Math.min(1, maxW / width, maxH / height);
+        width *= k;
+        height *= k;
+      }
+      if (width < MIN_CROP || height < MIN_CROP) return;
+      rect.setAttrs({
+        x: p.x >= drawFrom.x ? drawFrom.x : drawFrom.x - width,
+        y: p.y >= drawFrom.y ? drawFrom.y : drawFrom.y - height,
+        width,
+        height,
+        scaleX: 1,
+        scaleY: 1,
+      });
+      emit();
+    });
+    const finishDraw = () => {
+      if (!drawFrom) return;
+      drawFrom = null;
+      rect.draggable(true);
+      rect.setAttrs({ ...roundRect(live()), scaleX: 1, scaleY: 1 });
+      emit();
+    };
+    this.stage.on("mouseup.crop touchend.crop", finishDraw);
+    this.cropPointerUp = finishDraw;
+    window.addEventListener("pointerup", finishDraw);
+
+    const group = new Konva.Group();
+    group.add(shade, rect, transformer);
+    this.uiLayer.add(group);
+    this.cropUi = { group, rect, transformer, ratio: null };
+    this.applyFit();
+    emit();
+  }
+
+  private cropPointerUp: (() => void) | null = null;
+
+  /** Moves the crop frame; `ratio` locks the aspect ratio (null = free). */
+  setCrop(r: Rect, ratio: number | null): void {
+    if (!this.cropUi) return;
+    const { rect, transformer } = this.cropUi;
+    this.cropUi.ratio = ratio;
+    rect.setAttrs({ ...r, scaleX: 1, scaleY: 1 });
+    transformer.keepRatio(ratio !== null);
+    transformer.enabledAnchors(
+      ratio !== null
+        ? ["top-left", "top-right", "bottom-left", "bottom-right"]
+        : ["top-left", "top-center", "top-right", "middle-right", "bottom-right", "bottom-center", "bottom-left", "middle-left"],
+    );
+    rect.fire("transformend");
+  }
+
+  /** The crop frame in CSS pixels relative to the stage element. */
+  cropFrameOnScreen(): Rect | null {
+    if (!this.cropUi) return null;
+    const r = this.cropUi.rect;
+    return {
+      x: CROP_MARGIN + r.x() * this.scale,
+      y: CROP_MARGIN + r.y() * this.scale,
+      width: r.width() * r.scaleX() * this.scale,
+      height: r.height() * r.scaleY() * this.scale,
+    };
+  }
+
+  endCrop(): void {
+    if (!this.cropUi) return;
+    this.stage.off(".crop");
+    if (this.cropPointerUp) window.removeEventListener("pointerup", this.cropPointerUp);
+    this.cropPointerUp = null;
+    this.cropUi.group.destroy();
+    this.cropUi = null;
+    this.redactLayer.listening(true);
+    this.annotationLayer.listening(true);
+    this.applyFit();
+  }
+
 
   // ------------------------------------------------------------- nodes ---
 
@@ -780,13 +1027,17 @@ function outlineShape(
     : new Konva.Rect({ width, height, cornerRadius, lineJoin: "round", ...common });
 }
 
+function roundRect(r: Rect): Rect {
+  return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
+}
+
 function annotationId(target: Konva.Node): string | null {
   const node = target.findAncestor(".annotation", true);
   return node ? node.id() : null;
 }
 
 function isHandle(target: Konva.Node): boolean {
-  return target.hasName("handle");
+  return target.hasName("handle") || target.hasName("crop-frame");
 }
 
 function headLength(lineWidth: number): number {

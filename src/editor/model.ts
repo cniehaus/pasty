@@ -89,7 +89,17 @@ export interface Spotlight extends Base {
   shape: FrameShape;
 }
 
-export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame | Redaction | Spotlight;
+/**
+ * Visible part of the image. Not drawn; at most one per document. Kept in
+ * the annotation list so it shares undo, saving and restoring.
+ */
+export interface Crop extends Base {
+  kind: "crop";
+  width: number;
+  height: number;
+}
+
+export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame | Redaction | Spotlight | Crop;
 /** Annotations described by a rectangle (x, y, width, height). */
 export type BoxAnnotation = Frame | Redaction | Spotlight;
 export type Kind = Annotation["kind"];
@@ -103,7 +113,48 @@ export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   frame: ["color", "size", "shape"],
   redact: ["color", "size", "redactMode"],
   spotlight: ["size", "shape"],
+  crop: [],
 };
+
+/** Aspect ratios offered when cropping; null = free. */
+export const CROP_RATIOS: readonly { label: string; ratio: number | "original" | null }[] = [
+  { label: "Frei", ratio: null },
+  { label: "Original", ratio: "original" },
+  { label: "1:1", ratio: 1 },
+  { label: "4:3", ratio: 4 / 3 },
+  { label: "16:9", ratio: 16 / 9 },
+];
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function cropOf(annotations: readonly Annotation[]): Crop | undefined {
+  return annotations.find((a): a is Crop => a.kind === "crop");
+}
+
+/**
+ * Largest rectangle with the given aspect ratio, centred on `around` and
+ * kept inside `bounds`.
+ */
+export function fitRatio(around: Rect, ratio: number, bounds: Rect): Rect {
+  let width = around.width;
+  let height = width / ratio;
+  if (height > around.height) {
+    height = around.height;
+    width = height * ratio;
+  }
+  width = Math.min(width, bounds.width, bounds.height * ratio);
+  height = width / ratio;
+  const cx = around.x + around.width / 2;
+  const cy = around.y + around.height / 2;
+  const x = Math.min(Math.max(bounds.x, cx - width / 2), bounds.x + bounds.width - width);
+  const y = Math.min(Math.max(bounds.y, cy - height / 2), bounds.y + bounds.height - height);
+  return { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
+}
 
 export const COLORS = [
   { value: "#e53935", name: "Rot" },

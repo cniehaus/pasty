@@ -14,14 +14,18 @@ import {
   type HeadStyle,
   type Kind,
   type MarkerKind,
+  type Rect,
   type RedactMode,
   type Size,
   type Style,
   type TextNote,
   COLORS,
+  CROP_RATIOS,
   DEFAULT_STYLE,
   MAGNIFIER_COLOR,
+  cropOf,
   defaultMagnifierRadius,
+  fitRatio,
   fontSize,
   newId,
   nextMarkerLabel,
@@ -56,6 +60,7 @@ const TOOL_NAMES: Record<Tool, string> = {
   spotlight: "Betonen",
   redact: "Unkenntlich",
   magnifier: "Lupe",
+  crop: "Zuschneiden",
 };
 
 const TOOL_HINTS: Record<Tool, string> = {
@@ -67,6 +72,7 @@ const TOOL_HINTS: Record<Tool, string> = {
   spotlight: "Ziehen markiert einen Bereich, der hell bleibt. Der Rest wird abgedunkelt.",
   redact: "Ziehen macht einen Bereich unkenntlich. Schwärzen ist am sichersten.",
   magnifier: "Klicken setzt eine Lupe. An den Ecken ziehen ändert die Größe.",
+  crop: "Rahmen an den Anfassern anpassen oder verschieben. ↩ übernimmt, Esc bricht ab. Beschriftungen außerhalb bleiben erhalten.",
 };
 
 const SIZE_LABELS: Partial<Record<Kind, string>> = {
@@ -84,6 +90,8 @@ let tool: Tool = "marker";
 let style: Style = { ...DEFAULT_STYLE };
 let editing: { draft: TextNote; isNew: boolean; textarea: HTMLTextAreaElement } | null = null;
 let saveTimer: number | undefined;
+/** Crop tool state: frame being edited and the tool to return to. */
+let cropping: { rect: Rect; ratio: number | "original" | null; returnTo: Tool } | null = null;
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const stageArea = $<HTMLElement>("#stage-area");
@@ -133,11 +141,97 @@ function select(id: string | null) {
 
 function setTool(next: Tool) {
   finishEditing();
+  if (tool === "crop" && next !== "crop") endCrop();
+  const previous = tool;
   tool = next;
   stageEl.className = `tool-${tool}`;
   if (canvas) canvas.tool = tool;
   updateDraftFactory();
+  if (next === "crop" && previous !== "crop") startCrop(previous);
   refresh();
+}
+
+// ------------------------------------------------------------- cropping ---
+
+function startCrop(returnTo: Tool) {
+  if (!canvas || !doc) return;
+  doc.selectedId = null;
+  const existing = cropOf(annotations());
+  const full = { x: 0, y: 0, width: doc.image.naturalWidth, height: doc.image.naturalHeight };
+  const initial = existing ? { x: existing.x, y: existing.y, width: existing.width, height: existing.height } : full;
+  cropping = { rect: initial, ratio: null, returnTo: returnTo === "crop" ? "select" : returnTo };
+  canvas.startCrop(initial, (r) => {
+    if (!cropping) return;
+    cropping.rect = r;
+    placeCropBar();
+  });
+  $("#crop-bar").hidden = false;
+  updateCropBar();
+  placeCropBar();
+}
+
+function endCrop() {
+  cropping = null;
+  canvas?.endCrop();
+  $("#crop-bar").hidden = true;
+}
+
+function setCropRatio(ratio: number | "original" | null) {
+  if (!cropping || !canvas || !doc) return;
+  cropping.ratio = ratio;
+  const full = { x: 0, y: 0, width: doc.image.naturalWidth, height: doc.image.naturalHeight };
+  const value = ratio === "original" ? full.width / full.height : ratio;
+  canvas.setCrop(value ? fitRatio(cropping.rect, value, full) : cropping.rect, value);
+  updateCropBar();
+}
+
+function resetCrop() {
+  if (!cropping || !canvas || !doc) return;
+  cropping.ratio = null;
+  canvas.setCrop({ x: 0, y: 0, width: doc.image.naturalWidth, height: doc.image.naturalHeight }, null);
+  updateCropBar();
+}
+
+function applyCrop() {
+  if (!cropping || !doc) return;
+  const r = cropping.rect;
+  const returnTo = cropping.returnTo;
+  const whole = r.x <= 0 && r.y <= 0 && r.width >= doc.image.naturalWidth && r.height >= doc.image.naturalHeight;
+  const rest = annotations().filter((a) => a.kind !== "crop");
+  endCrop();
+  commit(whole ? rest : [...rest, { kind: "crop", id: newId(), ...r, color: "#000000", size: "m" }]);
+  setTool(returnTo);
+}
+
+function cancelCrop() {
+  if (!cropping) return;
+  setTool(cropping.returnTo);
+}
+
+function updateCropBar() {
+  document.querySelectorAll<HTMLElement>("[data-crop-ratio]").forEach((el) => {
+    const value = el.dataset.cropRatio!;
+    const current = cropping?.ratio;
+    const on = value === "free" ? current === null : value === "original" ? current === "original" : Number(value) === current;
+    el.setAttribute("aria-checked", String(on));
+  });
+}
+
+/** Floating bar below the crop frame (above it if there is no room). */
+function placeCropBar() {
+  const bar = $<HTMLDivElement>("#crop-bar");
+  const frame = canvas?.cropFrameOnScreen();
+  if (!frame || !cropping) return;
+  $("#crop-size").textContent = `${cropping.rect.width} × ${cropping.rect.height} px`;
+  const stageRect = stageEl.getBoundingClientRect();
+  const area = stageArea.getBoundingClientRect();
+  const gap = 10;
+  let top = stageRect.top + frame.y + frame.height + gap;
+  if (top + bar.offsetHeight > area.bottom - 4) top = stageRect.top + frame.y + frame.height - bar.offsetHeight - gap;
+  let left = stageRect.left + frame.x + frame.width / 2 - bar.offsetWidth / 2;
+  left = Math.min(Math.max(area.left + 4, left), area.right - bar.offsetWidth - 4);
+  bar.style.top = `${top - area.top}px`;
+  bar.style.left = `${left - area.left}px`;
 }
 
 /** Applies a style change to the defaults and to the selected annotation. */
@@ -257,6 +351,10 @@ async function loadDoc(id: number): Promise<Doc> {
 
 function switchTo(next: Doc | null) {
   finishEditing();
+  if (tool === "crop") {
+    endCrop();
+    tool = "select";
+  }
   flushSave();
   canvas?.destroy();
   canvas = null;
@@ -408,12 +506,13 @@ function startEditing(draft: TextNote, isNew: boolean) {
   editing = { draft, isNew, textarea };
 
   const scale = canvas.viewScale;
+  const origin = canvas.viewOrigin;
   const stageRect = stageEl.getBoundingClientRect();
   const fs = fontSize(draft.size, canvas.pixelRatio) * scale;
   const pad = textPadding(draft, canvas.pixelRatio) * scale;
   Object.assign(textarea.style, {
-    left: `${stageRect.left + draft.x * scale - 1}px`,
-    top: `${stageRect.top + draft.y * scale - 1}px`,
+    left: `${stageRect.left + (draft.x - origin.x) * scale - 1}px`,
+    top: `${stageRect.top + (draft.y - origin.y) * scale - 1}px`,
     font: `${fs}px ${FONT_FAMILY}`,
     lineHeight: String(TEXT_LINE_HEIGHT),
     padding: `${pad}px`,
@@ -470,6 +569,8 @@ function finishEditing() {
 // --------------------------------------------------------------- output ---
 
 async function renderPng(): Promise<Uint8Array> {
+  // An open crop frame is what the user sees as the result; take it over.
+  if (cropping) applyCrop();
   if (!canvas) throw new Error("Keine Aufnahme geöffnet");
   const blob = await canvas.exportPng();
   return new Uint8Array(await blob.arrayBuffer());
@@ -561,6 +662,18 @@ function buildPanels() {
   $("#save").addEventListener("click", () => void saveTo(defaultFileName()));
   $("#save-as").addEventListener("click", () => void saveAs());
   $("#delete").addEventListener("click", deleteSelected);
+  $("#crop-apply").addEventListener("click", applyCrop);
+  $("#crop-cancel").addEventListener("click", cancelCrop);
+  $("#crop-reset").addEventListener("click", resetCrop);
+  const ratios = $<HTMLDivElement>("#crop-ratios");
+  for (const r of CROP_RATIOS) {
+    const b = document.createElement("button");
+    b.dataset.cropRatio = r.ratio === null ? "free" : String(r.ratio);
+    b.textContent = r.label;
+    b.setAttribute("role", "radio");
+    b.addEventListener("click", () => setCropRatio(r.ratio));
+    ratios.append(b);
+  }
   $("#new-capture").addEventListener("click", () => void invoke("start_capture"));
   $("#empty-capture").addEventListener("click", () => void invoke("start_capture"));
 
@@ -650,7 +763,7 @@ function updatePanels() {
 
   const index = doc ? docs.indexOf(doc) : -1;
   $("#doc-title").textContent = doc
-    ? `Aufnahme ${index + 1} von ${docs.length} · ${doc.image.naturalWidth} × ${doc.image.naturalHeight} px`
+    ? `Aufnahme ${index + 1} von ${docs.length} · ${canvas?.outputSize.width ?? doc.image.naturalWidth} × ${canvas?.outputSize.height ?? doc.image.naturalHeight} px${cropOf(annotations()) ? " (zugeschnitten)" : ""}`
     : "";
 }
 
@@ -665,10 +778,23 @@ const TOOL_KEYS: Record<string, Tool> = {
   b: "spotlight",
   u: "redact",
   l: "magnifier",
+  c: "crop",
 };
 
 window.addEventListener("keydown", (e) => {
   if (editing) return;
+  if (cropping) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyCrop();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancelCrop();
+      return;
+    }
+  }
   const mod = IS_MAC ? e.metaKey : e.ctrlKey;
   const key = e.key.toLowerCase();
 
@@ -730,6 +856,7 @@ async function init() {
     finishEditing();
     layout();
     refresh(); // hit areas depend on the display scale
+    placeCropBar();
   });
   window.addEventListener("beforeunload", flushSave);
 }

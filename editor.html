@@ -63,6 +63,10 @@
         </svg>
         <span>Unkenntlich</span><kbd>U</kbd>
       </button>
+      <button class="tool" data-tool="crop">
+        <svg viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 002 2h14M2 6h14a2 2 0 012 2v14" /></svg>
+        <span>Zuschneiden</span><kbd>C</kbd>
+      </button>
       <button class="tool" data-tool="magnifier">
         <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L20 20M8 10.5h5M10.5 8v5" /></svg>
         <span>Lupe</span><kbd>L</kbd>
@@ -72,6 +76,19 @@
     <!-- Centre: image -->
     <main class="stage" id="stage-area">
       <div id="stage"></div>
+      <div class="crop-bar" id="crop-bar" hidden>
+        <button id="crop-apply" class="icon ok" title="Übernehmen (↩)" aria-label="Übernehmen">
+          <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </button>
+        <button id="crop-cancel" class="icon" title="Abbrechen (Esc)" aria-label="Abbrechen">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+        <span class="divider"></span>
+        <div class="ratios" id="crop-ratios" role="radiogroup" aria-label="Seitenverhältnis"></div>
+        <span class="divider"></span>
+        <button id="crop-reset" class="text-link" title="Zuschnitt aufheben">Ganzes Bild</button>
+        <span class="crop-size" id="crop-size"></span>
+      </div>
       <div class="empty" id="empty" hidden>
         <p>Keine Aufnahmen</p>
         <button class="text-button primary" id="empty-capture">Bereich aufnehmen</button>

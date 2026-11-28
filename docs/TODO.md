@@ -14,7 +14,7 @@ Stand: 28.11.2026 (Version 0.1.5)
   - Auswahl nachjustieren (Anfasser, Pfeiltasten, ↩ bestätigt)
   - Größe genau eingeben (z. B. 800 × 600)
 - [ ] **Timer-Aufnahme** 3 s / 10 s (z. B. für aufgeklappte Menüs)
-- [ ] **Zuschneiden** im Editor
+- [x] **Zuschneiden** im Editor (Seitenverhältnisse, Drittel-Raster, zerstörungsfrei)
 - [ ] **Sprechblasen**
 - [ ] **Fensteraufnahme** (einzelnes Fenster per Klick)
 - [ ] Strichbreite als **Zahl** statt nur S/M/L
