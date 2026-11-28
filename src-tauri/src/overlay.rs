@@ -34,17 +34,48 @@ pub struct OverlayState {
     generation: AtomicU64,
 }
 
-pub fn start(app: &AppHandle) {
+/// Checks the permission and claims the capture slot; false if a capture
+/// can't start now.
+fn begin(app: &AppHandle) -> bool {
     if !notice::screen_capture_allowed() {
         notice::request_screen_capture(app);
-        return;
+        return false;
     }
-
-    let state = app.state::<OverlayState>();
-    if state.busy.swap(true, Ordering::AcqRel) {
+    if app
+        .state::<OverlayState>()
+        .busy
+        .swap(true, Ordering::AcqRel)
+    {
         log::info!("capture already in progress");
+        return false;
+    }
+    true
+}
+
+/// Captures the whole monitor under the cursor straight into the editor.
+pub fn capture_full_screen(app: &AppHandle) {
+    if !begin(app) {
         return;
     }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let result = capture::snapshot_monitor_under_cursor(&app)
+            .and_then(|snapshot| editor::open(&app, &snapshot.image));
+        app.state::<OverlayState>()
+            .busy
+            .store(false, Ordering::Release);
+        if let Err(e) = result {
+            notice::error(&app, "Aufnahme fehlgeschlagen", &e);
+        }
+    });
+}
+
+/// Freezes the screen and lets the user select a region.
+pub fn start(app: &AppHandle) {
+    if !begin(app) {
+        return;
+    }
+    let state = app.state::<OverlayState>();
     let generation = state.generation.fetch_add(1, Ordering::AcqRel) + 1;
 
     let app = app.clone();

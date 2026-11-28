@@ -36,9 +36,28 @@ fn capture_shortcut() -> Shortcut {
     Shortcut::new(Some(PRIMARY | Modifiers::SHIFT), Code::Digit2)
 }
 
+/// Shortcut for "capture full screen": Cmd+Shift+1 / Ctrl+Shift+1.
+fn full_screen_shortcut() -> Shortcut {
+    Shortcut::new(Some(PRIMARY | Modifiers::SHIFT), Code::Digit1)
+}
+
 /// Triggered by the global shortcut or the tray menu.
 fn start_capture(app: &AppHandle) {
     overlay::start(app);
+}
+
+/// Registers a global shortcut; if another app owns it, says so instead of
+/// failing (the tray menu still works).
+fn register_shortcut(app: &AppHandle, shortcut: Shortcut, action: &str) {
+    if let Err(e) = app.global_shortcut().register(shortcut) {
+        notice::error(
+            app,
+            "Tastenkürzel nicht verfügbar",
+            &format!(
+                "Das Kürzel für „{action}“ ist bereits belegt ({e}). Die Funktion geht weiterhin über das Menüleisten-Symbol."
+            ),
+        );
+    }
 }
 
 /// Serves images from the [`store::ImageStore`] to the webviews.
@@ -101,6 +120,13 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+Shift+2"), // display hint only
     )?;
+    let full_screen = MenuItem::with_id(
+        app,
+        "full-screen",
+        "Ganzen Bildschirm aufnehmen",
+        true,
+        Some("CmdOrCtrl+Shift+1"),
+    )?;
     let editor_item = MenuItem::with_id(app, "editor", "Editor öffnen", true, None::<&str>)?;
     let logs = MenuItem::with_id(app, "logs", "Protokoll öffnen", true, None::<&str>)?;
     let restart = MenuItem::with_id(app, "restart", "Pasta neu starten", true, None::<&str>)?;
@@ -111,6 +137,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         app,
         &[
             &capture,
+            &full_screen,
             &editor_item,
             &separator,
             &logs,
@@ -129,6 +156,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => start_capture(app),
+            "full-screen" => overlay::capture_full_screen(app),
             "editor" => editor::show(app),
             "logs" => open_log_dir(app),
             "restart" => app.restart(),
@@ -169,8 +197,13 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if *shortcut == capture_shortcut() && event.state() == ShortcutState::Pressed {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if *shortcut == capture_shortcut() {
                         start_capture(app);
+                    } else if *shortcut == full_screen_shortcut() {
+                        overlay::capture_full_screen(app);
                     }
                 })
                 .build(),
@@ -182,14 +215,12 @@ pub fn run() {
 
             log::info!("Pasta {} started", app.package_info().version);
             build_tray(app.handle())?;
-            if let Err(e) = app.global_shortcut().register(capture_shortcut()) {
-                // Another app may own the shortcut; the tray menu still works.
-                notice::error(
-                    app.handle(),
-                    "Tastenkürzel nicht verfügbar",
-                    &format!("Das Kürzel für „Bereich aufnehmen“ ist bereits belegt ({e}). Die Aufnahme geht weiterhin über das Menüleisten-Symbol."),
-                );
-            }
+            register_shortcut(app.handle(), capture_shortcut(), "Bereich aufnehmen");
+            register_shortcut(
+                app.handle(),
+                full_screen_shortcut(),
+                "Ganzen Bildschirm aufnehmen",
+            );
             if !notice::screen_capture_allowed() {
                 notice::request_screen_capture(app.handle());
             }
