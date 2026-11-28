@@ -59,6 +59,7 @@ Projektstruktur:
 | `src-tauri/` | Rust-Kern (Aufnahme, Zwischenablage, Hotkeys, Speichern …) |
 | `src/` | Oberfläche in TypeScript (Auswahl-Overlay, Editor) |
 | `docs/SPEC.md` | Projektrahmen und Roadmap |
+| `docs/TODO.md` | Offene Punkte |
 | `assets/icon/` | Icon-Quellen als SVG; `npm run icons` erzeugt daraus alle Icon-Dateien |
 
 ## Lizenz
