@@ -23,11 +23,11 @@ import {
   contrastColor,
   cropOf,
   dimOpacity,
-  fontSize,
   markerRadius,
   pixelBlockSize,
   redactBlurRadius,
   strokeWidth,
+  textFontSize,
 } from "./model";
 
 export const FONT_FAMILY = "system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -72,7 +72,7 @@ export function textFontStyle(note: TextNote): string {
 /** Padding inside a text box, in image pixels. */
 export function textPadding(note: TextNote, pixelRatio: number): number {
   const boxed = note.textBackground === "white" || note.textBackground === "color";
-  return boxed ? fontSize(note.size, pixelRatio) * 0.35 : 0;
+  return boxed ? textFontSize(note, pixelRatio) * 0.35 : 0;
 }
 
 export class AnnotationCanvas {
@@ -597,7 +597,7 @@ export class AnnotationCanvas {
 
   private drawText(group: Konva.Group, t: TextNote): void {
     group.position({ x: t.x, y: t.y });
-    const size = fontSize(t.size, this.pixelRatio);
+    const size = textFontSize(t, this.pixelRatio);
     const box = t.textBackground === "white" || t.textBackground === "color";
     const label = new Konva.Label();
     label.add(

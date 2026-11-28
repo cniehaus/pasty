@@ -37,6 +37,7 @@ fn show(app: &AppHandle, title: &str, message: &str, kind: MessageDialogKind) {
 }
 
 const PROJECT_URL: &str = "https://github.com/cniehaus/pasty";
+const HELP_URL: &str = "https://cniehaus.github.io/pasty/";
 
 /// Opens (or focuses) the "About Pasta" window.
 pub fn about(app: &AppHandle) {
@@ -66,6 +67,17 @@ pub fn about(app: &AppHandle) {
 #[tauri::command]
 pub fn open_project_page() {
     open_url(PROJECT_URL);
+}
+
+/// User guide (the project website).
+#[tauri::command]
+pub fn open_help() {
+    open_url(HELP_URL);
+}
+
+#[tauri::command]
+pub fn show_about(app: AppHandle) {
+    about(&app);
 }
 
 /// Whether Pasta may record the screen. On macOS a newly granted permission

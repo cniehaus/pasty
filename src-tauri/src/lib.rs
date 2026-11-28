@@ -108,6 +108,11 @@ fn tray_icon(app: &AppHandle) -> tauri::Result<(Image<'static>, bool)> {
     Ok((icon, false))
 }
 
+#[tauri::command]
+fn open_logs(app: AppHandle) {
+    open_log_dir(&app);
+}
+
 fn open_log_dir(app: &AppHandle) {
     match app.path().app_log_dir() {
         Ok(dir) => notice::open_url(&dir.to_string_lossy()),
@@ -218,6 +223,9 @@ pub fn run() {
             editor::load_annotations,
             editor::start_capture,
             notice::open_project_page,
+            notice::open_help,
+            notice::show_about,
+            open_logs,
         ])
         .plugin(
             tauri_plugin_log::Builder::new()

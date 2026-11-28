@@ -16,6 +16,8 @@ export interface Style {
   color: string;
   size: Size;
   textBackground: TextBackground;
+  /** Font size of text in points (logical pixels). */
+  textSize: number;
   bold: boolean;
   italic: boolean;
   startHead: Head;
@@ -52,6 +54,8 @@ export interface TextNote extends Base {
   kind: "text";
   text: string;
   textBackground: TextBackground;
+  /** Font size in points (logical pixels); replaces `size` for texts. */
+  textSize: number;
   bold: boolean;
   italic: boolean;
 }
@@ -125,7 +129,7 @@ export type Kind = Annotation["kind"];
 /** Style properties that apply to each kind. */
 export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   marker: ["color", "size"],
-  text: ["color", "size", "textBackground", "bold", "italic"],
+  text: ["color", "textSize", "textBackground", "bold", "italic"],
   arrow: ["color", "size", "startHead", "endHead"],
   magnifier: ["size", "zoom", "blurOutside"],
   frame: ["color", "size", "shape"],
@@ -198,6 +202,7 @@ export const DEFAULT_STYLE: Style = {
   color: COLORS[0].value,
   size: "m",
   textBackground: "white",
+  textSize: 20,
   bold: false,
   italic: false,
   startHead: "none",
@@ -227,6 +232,20 @@ export function markerRadius(size: Size, pixelRatio: number): number {
 
 export function fontSize(size: Size, pixelRatio: number): number {
   return FONT_SIZE[size] * pixelRatio;
+}
+
+export const TEXT_SIZE_RANGE = { min: 8, max: 120 } as const;
+
+/** Font size of a text note in image pixels. */
+export function textFontSize(note: TextNote, pixelRatio: number): number {
+  return (note.textSize ?? FONT_SIZE[note.size]) * pixelRatio;
+}
+
+/** Next font size up or down, in steps that feel even at any size. */
+export function stepTextSize(current: number, direction: 1 | -1): number {
+  const step = current < 16 ? 1 : current < 40 ? 2 : 4;
+  const next = current + direction * step;
+  return Math.min(TEXT_SIZE_RANGE.max, Math.max(TEXT_SIZE_RANGE.min, next));
 }
 
 export function strokeWidth(size: Size, pixelRatio: number): number {
@@ -275,9 +294,14 @@ export function translate(a: Annotation, dx: number, dy: number): Annotation {
 export function migrate(saved: unknown[]): Annotation[] {
   return saved.map((item) => {
     const a = item as Record<string, unknown>;
-    if (a.kind === "text" && "boxed" in a) {
-      const { boxed, ...rest } = a as { boxed: boolean };
-      return { ...rest, textBackground: boxed ? "white" : "none", bold: false, italic: false } as Annotation;
+    if (a.kind === "text") {
+      let note = { ...a };
+      if ("boxed" in note) {
+        const { boxed, ...rest } = note as { boxed: boolean };
+        note = { ...rest, textBackground: boxed ? "white" : "none", bold: false, italic: false };
+      }
+      if (note.textSize === undefined) note.textSize = FONT_SIZE[(note.size as Size) ?? "m"];
+      return note as unknown as Annotation;
     }
     if (a.kind === "arrow" && "heads" in a) {
       const { heads, headStyle, ...rest } = a as { heads: string; headStyle: HeadStyle };

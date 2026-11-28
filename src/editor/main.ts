@@ -22,13 +22,15 @@ import {
   COLORS,
   CROP_RATIOS,
   HIGHLIGHT_COLORS,
+  TEXT_SIZE_RANGE,
   contrastColor,
   DEFAULT_STYLE,
   MAGNIFIER_COLOR,
   cropOf,
   defaultMagnifierRadius,
   fitRatio,
-  fontSize,
+  stepTextSize,
+  textFontSize,
   migrate,
   newId,
   nextMarkerLabel,
@@ -479,6 +481,7 @@ function onBackgroundClick(p: Point) {
         color,
         size,
         textBackground: style.textBackground,
+        textSize: style.textSize,
         bold: style.bold,
         italic: style.italic,
         text: "",
@@ -549,6 +552,12 @@ function startEditing(draft: TextNote, isNew: boolean) {
   textarea.addEventListener("blur", () => finishEditing());
   textarea.addEventListener("keydown", (e) => {
     e.stopPropagation();
+    // ⌘+ / ⌘− (Ctrl on Windows): font size while typing.
+    if ((IS_MAC ? e.metaKey : e.ctrlKey) && ["+", "=", "-"].includes(e.key)) {
+      e.preventDefault();
+      setStyle({ textSize: stepTextSize(style.textSize, e.key === "-" ? -1 : 1) });
+      return;
+    }
     if (e.key === "Escape" || (e.key === "Enter" && (e.metaKey || e.ctrlKey))) {
       e.preventDefault();
       finishEditing();
@@ -569,7 +578,7 @@ function styleTextarea() {
   const scale = canvas.viewScale;
   const origin = canvas.viewOrigin;
   const stageRect = stageEl.getBoundingClientRect();
-  const fs = fontSize(draft.size, canvas.pixelRatio) * scale;
+  const fs = textFontSize(draft, canvas.pixelRatio) * scale;
   const pad = textPadding(draft, canvas.pixelRatio) * scale;
   Object.assign(textarea.style, {
     left: `${stageRect.left + (draft.x - origin.x) * scale - 1}px`,
@@ -611,8 +620,8 @@ function finishEditing() {
     commit(annotations().filter((a) => a.id !== draft.id));
   } else {
     // Style may have been changed while typing; `update` skips no-ops.
-    const { color, size, textBackground, bold, italic } = draft;
-    update(draft.id, { text, color, size, textBackground, bold, italic });
+    const { color, textSize, textBackground, bold, italic } = draft;
+    update(draft.id, { text, color, textSize, textBackground, bold, italic });
   }
 }
 
@@ -714,6 +723,12 @@ function buildPanels() {
   on("[data-zoom]", (el) => setStyle({ zoom: Number(el.dataset.zoom) }));
   on("[data-text-background]", (el) => setStyle({ textBackground: el.dataset.textBackground as TextBackground }));
   $("#bold").addEventListener("click", () => setStyle({ bold: !style.bold }));
+  $("#text-smaller").addEventListener("click", () => setStyle({ textSize: stepTextSize(style.textSize, -1) }));
+  $("#text-larger").addEventListener("click", () => setStyle({ textSize: stepTextSize(style.textSize, 1) }));
+  $<HTMLInputElement>("#text-size").addEventListener("change", (e) => {
+    const value = Math.round(Number((e.target as HTMLInputElement).value));
+    if (Number.isFinite(value)) setStyle({ textSize: Math.min(TEXT_SIZE_RANGE.max, Math.max(TEXT_SIZE_RANGE.min, value)) });
+  });
   $("#italic").addEventListener("click", () => setStyle({ italic: !style.italic }));
   $<HTMLInputElement>("#blur-outside").addEventListener("change", (e) =>
     setStyle({ blurOutside: (e.target as HTMLInputElement).checked }),
@@ -724,6 +739,7 @@ function buildPanels() {
   $("#save").addEventListener("click", () => void saveTo(defaultFileName()));
   $("#save-as").addEventListener("click", () => void saveAs());
   $("#delete").addEventListener("click", deleteSelected);
+  setupHelpMenu();
   $("#crop-apply").addEventListener("click", applyCrop);
   $("#crop-cancel").addEventListener("click", cancelCrop);
   $("#crop-reset").addEventListener("click", resetCrop);
@@ -743,6 +759,30 @@ function buildPanels() {
   document.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (e) => e.preventDefault()));
 
   setupTooltips();
+}
+
+function setupHelpMenu() {
+  const button = $<HTMLButtonElement>("#help");
+  const menu = $<HTMLDivElement>("#help-menu");
+  const setOpen = (open: boolean) => {
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  };
+  const commands: Record<string, string> = { guide: "open_help", logs: "open_logs", about: "show_about" };
+
+  button.addEventListener("click", () => setOpen(menu.hasAttribute("hidden")));
+  menu.querySelectorAll<HTMLButtonElement>("[data-help]").forEach((item) =>
+    item.addEventListener("click", () => {
+      setOpen(false);
+      void invoke(commands[item.dataset.help!]);
+    }),
+  );
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !button.contains(e.target as Node) && !menu.contains(e.target as Node)) setOpen(false);
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) setOpen(false);
+  });
 }
 
 const TOOLTIP_DELAY_MS = 400;
@@ -806,6 +846,8 @@ function updatePanels() {
   check("[data-marker-kind]", (el) => el.dataset.markerKind === style.markerKind);
   check("[data-text-background]", (el) => el.dataset.textBackground === style.textBackground);
   $("#bold").setAttribute("aria-pressed", String(style.bold));
+  const sizeInput = $<HTMLInputElement>("#text-size");
+  if (document.activeElement !== sizeInput) sizeInput.value = String(style.textSize);
   $("#italic").setAttribute("aria-pressed", String(style.italic));
   $<HTMLInputElement>("#blur-outside").checked = style.blurOutside;
 
@@ -853,6 +895,11 @@ const TOOL_KEYS: Record<string, Tool> = {
 
 window.addEventListener("keydown", (e) => {
   if (editing) return;
+  // Typing in a settings field (e.g. font size) is not a shortcut.
+  if (e.target instanceof HTMLInputElement && e.target.type !== "checkbox") {
+    if (e.key === "Enter" || e.key === "Escape") e.target.blur();
+    return;
+  }
   if (cropping) {
     if (e.key === "Enter") {
       e.preventDefault();

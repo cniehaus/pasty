@@ -21,6 +21,8 @@ Stand: 28.11.2026 (Version 0.1.5)
 - [x] **Textmarker** (multiplizierend, eigene Markerfarben)
 - [x] Größe **XL** für alle Werkzeuge
 - [ ] **Texterkennung (OCR)**: Text im Bildschirmfoto markieren/kopieren, automatisch schwärzen – Bedarf klären
+- [ ] macOS: Während der Editor offen ist, Dock-Symbol und eigene Menüleiste
+      (Über Pasta, Bearbeiten, Fenster) und Erreichbarkeit per ⌘-Tab
 - [ ] **Scrollende Aufnahme** – bewusst zuletzt (am aufwändigsten)
 
 ## Textbausteine und Einfügen

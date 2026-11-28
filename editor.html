@@ -21,6 +21,17 @@
       </div>
       <div class="doc-title" id="doc-title"></div>
       <div class="group">
+        <div class="help">
+          <button id="help" class="icon" title="Hilfe und Informationen" aria-label="Hilfe" aria-haspopup="menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.7-2.5 2-2.5 4M12 17h.01" /></svg>
+          </button>
+          <div class="help-menu" id="help-menu" role="menu" hidden>
+            <button role="menuitem" data-help="guide">Anleitung (Webseite)</button>
+            <button role="menuitem" data-help="logs">Protokoll öffnen</button>
+            <hr />
+            <button role="menuitem" data-help="about">Über Pasta …</button>
+          </div>
+        </div>
         <button id="save-as" class="text-button" title="Speichern unter … (⇧⌘S)">Speichern unter …</button>
         <button id="save" class="text-button" title="In Bilder/Pasta speichern (⌘S)">Speichern</button>
         <button id="copy" class="text-button primary" title="In die Zwischenablage kopieren (⌘C)">Kopieren</button>
@@ -120,7 +131,19 @@
           <div class="swatches" id="highlight-colors" role="radiogroup" aria-label="Markerfarbe"></div>
         </div>
 
-        <div class="row" data-for="marker text arrow frame redact spotlight magnifier">
+        <div class="row" data-for="text">
+          <span class="label">Schriftgröße</span>
+          <div class="stepper">
+            <button id="text-smaller" title="Kleiner (⌘−)" aria-label="Kleiner">−</button>
+            <label class="stepper-value">
+              <input id="text-size" type="number" min="8" max="120" step="1" aria-label="Schriftgröße in Punkt" />
+              <span>pt</span>
+            </label>
+            <button id="text-larger" title="Größer (⌘+)" aria-label="Größer">+</button>
+          </div>
+        </div>
+
+        <div class="row" data-for="marker arrow frame redact spotlight magnifier">
           <span class="label" id="size-label">Größe</span>
           <div class="segmented" role="radiogroup" aria-label="Größe">
             <button data-size="s">S</button>
@@ -140,11 +163,19 @@
 
         <div class="row" data-for="text">
           <span class="label">Hintergrund</span>
-          <div class="segmented" role="radiogroup" aria-label="Hintergrund">
-            <button data-text-background="none" title="Ohne Hintergrund">Ohne</button>
-            <button data-text-background="halo" title="Weißer Rand um die Buchstaben">Kontur</button>
-            <button data-text-background="white" title="Weißer Kasten">Weiß</button>
-            <button data-text-background="color" title="Kasten in der Textfarbe">Farbig</button>
+          <div class="option-tiles" role="radiogroup" aria-label="Hintergrund">
+            <button data-text-background="none" title="Nur die Schrift, ohne Hintergrund">
+              <span class="sample sample-none">Aa</span>Ohne
+            </button>
+            <button data-text-background="halo" title="Weiße Umrandung um jeden Buchstaben – lesbar auf jedem Hintergrund, ohne Kasten">
+              <span class="sample sample-halo">Aa</span>Weißer Rand
+            </button>
+            <button data-text-background="white" title="Text in einem weißen Kasten mit farbigem Rahmen">
+              <span class="sample sample-white">Aa</span>Weißer Kasten
+            </button>
+            <button data-text-background="color" title="Weiße Schrift in einem Kasten der gewählten Farbe">
+              <span class="sample sample-color">Aa</span>Farbkasten
+            </button>
           </div>
         </div>
 
