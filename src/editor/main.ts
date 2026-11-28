@@ -21,6 +21,7 @@ import {
   type TextNote,
   COLORS,
   CROP_RATIOS,
+  HIGHLIGHT_COLORS,
   contrastColor,
   DEFAULT_STYLE,
   MAGNIFIER_COLOR,
@@ -63,6 +64,7 @@ const TOOL_NAMES: Record<Tool, string> = {
   redact: "Unkenntlich",
   magnifier: "Lupe",
   crop: "Zuschneiden",
+  highlight: "Textmarker",
 };
 
 const TOOL_HINTS: Record<Tool, string> = {
@@ -74,6 +76,7 @@ const TOOL_HINTS: Record<Tool, string> = {
   spotlight: "Ziehen markiert einen Bereich, der hell bleibt. Der Rest wird abgedunkelt.",
   redact: "Ziehen macht einen Bereich unkenntlich. Schwärzen ist am sichersten.",
   magnifier: "Klicken setzt eine Lupe. An den Ecken ziehen ändert die Größe.",
+  highlight: "Ziehen markiert einen Bereich wie mit einem Leuchtstift. Die Schrift darunter bleibt lesbar.",
   crop: "Rahmen an den Anfassern anpassen oder verschieben. ↩ übernimmt, Esc bricht ab. Beschriftungen außerhalb bleiben erhalten.",
 };
 
@@ -289,6 +292,16 @@ function updateDraftFactory() {
         color,
         size,
         redactMode: style.redactMode,
+      });
+      break;
+    case "highlight":
+      canvas.draftFactory = (s, e) => ({
+        kind: "highlight",
+        id: newId(),
+        ...spanRect(s, e),
+        color,
+        size,
+        highlightColor: style.highlightColor,
       });
       break;
     case "spotlight":
@@ -675,11 +688,23 @@ function buildPanels() {
     colors.append(button);
   }
 
+  const highlightColors = $<HTMLDivElement>("#highlight-colors");
+  for (const c of HIGHLIGHT_COLORS) {
+    const button = document.createElement("button");
+    button.className = "swatch";
+    button.dataset.highlightColor = c.value;
+    button.title = c.name;
+    button.setAttribute("aria-label", c.name);
+    button.innerHTML = `<span style="background:${c.value}"></span>`;
+    highlightColors.append(button);
+  }
+
   const on = (selector: string, handler: (el: HTMLElement) => void) =>
     document.querySelectorAll<HTMLElement>(selector).forEach((el) => el.addEventListener("click", () => handler(el)));
 
   on("[data-tool]", (el) => setTool(el.dataset.tool as Tool));
   on("[data-color]", (el) => setStyle({ color: el.dataset.color }));
+  on("[data-highlight-color]", (el) => setStyle({ highlightColor: el.dataset.highlightColor }));
   on("[data-size]", (el) => setStyle({ size: el.dataset.size as Size }));
   on("[data-start-head]", (el) => setStyle({ startHead: el.dataset.startHead as Head }));
   on("[data-end-head]", (el) => setStyle({ endHead: el.dataset.endHead as Head }));
@@ -771,6 +796,7 @@ function updatePanels() {
     });
   check("[data-tool]", (el) => el.dataset.tool === tool);
   check("[data-color]", (el) => el.dataset.color === style.color);
+  check("[data-highlight-color]", (el) => el.dataset.highlightColor === style.highlightColor);
   check("[data-size]", (el) => el.dataset.size === style.size);
   check("[data-start-head]", (el) => el.dataset.startHead === style.startHead);
   check("[data-end-head]", (el) => el.dataset.endHead === style.endHead);
@@ -818,6 +844,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   u: "redact",
   l: "magnifier",
   c: "crop",
+  h: "highlight",
 };
 
 window.addEventListener("keydown", (e) => {

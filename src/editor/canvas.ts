@@ -9,6 +9,7 @@ import {
   type Arrow,
   type BoxAnnotation,
   type Frame,
+  type Highlight,
   type FrameShape,
   type HeadStyle,
   type Magnifier,
@@ -17,6 +18,7 @@ import {
   type Redaction,
   type Spotlight,
   type TextNote,
+  AREA_KINDS,
   MAGNIFIER_COLOR,
   contrastColor,
   cropOf,
@@ -85,6 +87,10 @@ export class AnnotationCanvas {
   tool = "select";
 
   private readonly blurNode: Konva.Image;
+  /** Image, blurred copy and highlighter strokes share one layer, so the
+   *  highlighter can multiply with the image pixels. */
+  private readonly baseLayer = new Konva.Layer();
+  private readonly highlightGroup = new Konva.Group();
   /** Redactions sit directly on the image, below everything else. */
   private readonly redactLayer = new Konva.Layer();
   /** Dimming around spotlights. */
@@ -131,11 +137,11 @@ export class AnnotationCanvas {
     this.stage = new Konva.Stage({ container, width: 1, height: 1 });
     this.region = { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight };
 
-    const imageLayer = new Konva.Layer({ listening: false });
-    this.blurNode = new Konva.Image({ image: undefined, visible: false });
-    imageLayer.add(
-      new Konva.Image({ image, width: image.naturalWidth, height: image.naturalHeight }),
+    this.blurNode = new Konva.Image({ image: undefined, visible: false, listening: false });
+    this.baseLayer.add(
+      new Konva.Image({ image, width: image.naturalWidth, height: image.naturalHeight, listening: false }),
       this.blurNode,
+      this.highlightGroup,
     );
     this.dimShape = new Konva.Shape({
       sceneFunc: (ctx) => this.drawDimming(ctx._context),
@@ -143,7 +149,7 @@ export class AnnotationCanvas {
     });
     this.dimLayer.add(this.dimShape);
     this.uiLayer.add(this.transformer);
-    this.stage.add(imageLayer, this.redactLayer, this.dimLayer, this.annotationLayer, this.uiLayer);
+    this.stage.add(this.baseLayer, this.redactLayer, this.dimLayer, this.annotationLayer, this.uiLayer);
 
     this.stage.on("mousedown touchstart", (e) => {
       this.suppressClick = false;
@@ -245,6 +251,7 @@ export class AnnotationCanvas {
     // Nodes are recreated, so a pending mouseleave would never fire.
     this.stage.container().style.cursor = "";
     this.redactLayer.destroyChildren();
+    this.highlightGroup.destroyChildren();
     this.annotationLayer.destroyChildren();
     this.spotlights = [];
 
@@ -274,7 +281,11 @@ export class AnnotationCanvas {
       node.on("mouseleave", () => (this.stage.container().style.cursor = ""));
       const origin = { x: node.x(), y: node.y() };
       node.on("dragend", () => this.callbacks.onTranslate(a.id, node.x() - origin.x, node.y() - origin.y));
-      (a.kind === "redact" ? this.redactLayer : this.annotationLayer).add(node);
+      // Areas don't catch clicks of other tools, so one can draw over them.
+      if (AREA_KINDS.includes(a.kind)) node.listening(this.tool === "select" || this.tool === a.kind);
+      const target =
+        a.kind === "highlight" ? this.highlightGroup : a.kind === "redact" ? this.redactLayer : this.annotationLayer;
+      target.add(node);
       if (a.kind === "spotlight") {
         this.spotlights.push({ node, spot: a });
         node.on("dragmove transform", () => this.dimLayer.batchDraw());
@@ -312,6 +323,7 @@ export class AnnotationCanvas {
   startCrop(initial: Rect, onChange: (r: Rect) => void): void {
     this.endCrop();
     this.transformer.nodes([]);
+    this.baseLayer.listening(false);
     this.redactLayer.listening(false);
     this.annotationLayer.listening(false);
 
@@ -487,6 +499,7 @@ export class AnnotationCanvas {
     this.cropPointerUp = null;
     this.cropUi.group.destroy();
     this.cropUi = null;
+    this.baseLayer.listening(true);
     this.redactLayer.listening(true);
     this.annotationLayer.listening(true);
     this.applyFit();
@@ -518,6 +531,9 @@ export class AnnotationCanvas {
         break;
       case "spotlight":
         this.drawSpotlight(group, a);
+        break;
+      case "highlight":
+        this.drawHighlight(group, a);
         break;
     }
     return group;
@@ -716,6 +732,21 @@ export class AnnotationCanvas {
     group.add(content);
   }
 
+  private drawHighlight(group: Konva.Group, h: Highlight): void {
+    group.position({ x: h.x, y: h.y });
+    group.add(
+      new Konva.Rect({
+        width: h.width,
+        height: h.height,
+        fill: h.highlightColor,
+        cornerRadius: Math.min(h.width, h.height) * 0.08,
+        // Like a real highlighter: the colour darkens the image below,
+        // dark text stays dark.
+        globalCompositeOperation: "multiply",
+      }),
+    );
+  }
+
   private drawSpotlight(group: Konva.Group, s: Spotlight): void {
     group.position({ x: s.x, y: s.y });
     // Invisible shape as grab handle; the dimming shows the area.
@@ -844,6 +875,7 @@ export class AnnotationCanvas {
       case "frame":
       case "redact":
       case "spotlight":
+      case "highlight":
         this.showBoxTransformer(a, node);
         return;
     }

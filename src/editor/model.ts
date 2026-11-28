@@ -1,6 +1,6 @@
 // Annotation data model. All coordinates and sizes are in image pixels.
 
-export type Size = "s" | "m" | "l";
+export type Size = "s" | "m" | "l" | "xl";
 export type HeadStyle = "filled" | "open" | "dot";
 /** Text background: none, white outline around letters, white box, box in the text colour. */
 export type TextBackground = "none" | "halo" | "white" | "color";
@@ -25,6 +25,7 @@ export interface Style {
   shape: FrameShape;
   redactMode: RedactMode;
   markerKind: MarkerKind;
+  highlightColor: string;
 }
 
 interface Base {
@@ -106,9 +107,19 @@ export interface Crop extends Base {
   height: number;
 }
 
-export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame | Redaction | Spotlight | Crop;
+/** Highlighter stroke over an area; drawn with "multiply" so text stays dark. */
+export interface Highlight extends Base {
+  kind: "highlight";
+  width: number;
+  height: number;
+  highlightColor: string;
+}
+
+export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame | Redaction | Spotlight | Crop | Highlight;
 /** Annotations described by a rectangle (x, y, width, height). */
-export type BoxAnnotation = Frame | Redaction | Spotlight;
+export type BoxAnnotation = Frame | Redaction | Spotlight | Highlight;
+/** Kinds covering an area; other tools draw over them instead of grabbing them. */
+export const AREA_KINDS: readonly Kind[] = ["redact", "magnifier", "highlight"];
 export type Kind = Annotation["kind"];
 
 /** Style properties that apply to each kind. */
@@ -121,7 +132,16 @@ export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   redact: ["color", "size", "redactMode"],
   spotlight: ["size", "shape"],
   crop: [],
+  highlight: ["highlightColor"],
 };
+
+export const HIGHLIGHT_COLORS = [
+  { value: "#ffeb3b", name: "Gelb" },
+  { value: "#b2f28c", name: "Grün" },
+  { value: "#ffa8dc", name: "Pink" },
+  { value: "#ffc46b", name: "Orange" },
+  { value: "#9fd8ff", name: "Blau" },
+] as const;
 
 /** Aspect ratios offered when cropping; null = free. */
 export const CROP_RATIOS: readonly { label: string; ratio: number | "original" | null }[] = [
@@ -187,18 +207,19 @@ export const DEFAULT_STYLE: Style = {
   shape: "rect",
   redactMode: "pixelate",
   markerKind: "number",
+  highlightColor: "#ffeb3b",
 };
 
 export const MAGNIFIER_COLOR = "#ffffff";
 
 // Sizes in logical points; multiplied by the image's pixel ratio.
-const MARKER_RADIUS: Record<Size, number> = { s: 11, m: 15, l: 20 };
-const FONT_SIZE: Record<Size, number> = { s: 14, m: 20, l: 28 };
-const STROKE_WIDTH: Record<Size, number> = { s: 2.5, m: 4, l: 6 };
+const MARKER_RADIUS: Record<Size, number> = { s: 11, m: 15, l: 20, xl: 28 };
+const FONT_SIZE: Record<Size, number> = { s: 14, m: 20, l: 28, xl: 40 };
+const STROKE_WIDTH: Record<Size, number> = { s: 2.5, m: 4, l: 6, xl: 11 };
 const MAGNIFIER_RADIUS = 90;
-const PIXEL_BLOCK: Record<Size, number> = { s: 6, m: 10, l: 16 };
-const REDACT_BLUR: Record<Size, number> = { s: 6, m: 10, l: 16 };
-const DIM_OPACITY: Record<Size, number> = { s: 0.35, m: 0.55, l: 0.75 };
+const PIXEL_BLOCK: Record<Size, number> = { s: 6, m: 10, l: 16, xl: 24 };
+const REDACT_BLUR: Record<Size, number> = { s: 6, m: 10, l: 16, xl: 24 };
+const DIM_OPACITY: Record<Size, number> = { s: 0.35, m: 0.55, l: 0.75, xl: 0.85 };
 
 export function markerRadius(size: Size, pixelRatio: number): number {
   return MARKER_RADIUS[size] * pixelRatio;
