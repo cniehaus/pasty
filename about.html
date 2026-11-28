@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Über Pasta</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/about.css" />
+    <script type="module" src="/src/about.ts"></script>
+  </head>
+  <body>
+    <main class="about">
+      <img class="logo" id="logo" alt="Pasta-Logo" />
+      <h1>Pasta</h1>
+      <p class="version" id="version">Version</p>
+      <p class="tagline">Bildschirmfotos aufnehmen und beschriften.</p>
+
+      <ul class="chips" aria-label="Werkzeuge">
+        <li>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M10.5 9l2-1.5V16" /></svg>
+          Nummern
+        </li>
+        <li><svg viewBox="0 0 24 24"><path d="M6 18L18 6M9 6h9v9" /></svg>Pfeile</li>
+        <li><svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6" /></svg>Text</li>
+        <li><svg viewBox="0 0 24 24"><path d="M14 4l6 6-8 8H6v-6zM4 21h16" /></svg>Textmarker</li>
+        <li><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l5 5" /></svg>Lupe</li>
+        <li>
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 12h16M12 4v16" /></svg>
+          Unkenntlich machen
+        </li>
+      </ul>
+
+      <section class="privacy">
+        <svg class="shield" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+          <path d="M8.5 12.5l2.5 2.5 4.5-5" />
+        </svg>
+        <div>
+          <p class="privacy-title">Ihre Bildschirmfotos verlassen diesen Rechner nicht.</p>
+          <p class="privacy-text">Pasta arbeitet ohne Internet: keine Cloud, kein Konto, keine Datenübertragung.</p>
+        </div>
+      </section>
+
+      <p class="legal">Freie Software unter der GNU GPL 3.0 oder neuer<br />© 2026 Carsten Niehaus</p>
+
+      <div class="buttons">
+        <button id="project">Quelltext ansehen</button>
+        <button id="close" class="primary">Schließen</button>
+      </div>
+    </main>
+  </body>
+</html>

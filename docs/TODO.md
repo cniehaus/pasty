@@ -18,6 +18,9 @@ Stand: 28.11.2026 (Version 0.1.5)
 - [ ] **Sprechblasen**
 - [x] **Fensteraufnahme** (Fenster im Auswahlmodus anklicken; ohne verdeckende Fenster)
 - [ ] Strichbreite als **Zahl** statt nur S/M/L
+- [x] **Textmarker** (multiplizierend, eigene Markerfarben)
+- [x] Größe **XL** für alle Werkzeuge
+- [ ] **Texterkennung (OCR)**: Text im Bildschirmfoto markieren/kopieren, automatisch schwärzen – Bedarf klären
 - [ ] **Scrollende Aufnahme** – bewusst zuletzt (am aufwändigsten)
 
 ## Textbausteine und Einfügen

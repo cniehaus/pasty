@@ -146,6 +146,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let editor_item = MenuItem::with_id(app, "editor", "Editor öffnen", true, None::<&str>)?;
+    let about = MenuItem::with_id(app, "about", "Über Pasta …", true, None::<&str>)?;
     let logs = MenuItem::with_id(app, "logs", "Protokoll öffnen", true, None::<&str>)?;
     let restart = MenuItem::with_id(app, "restart", "Pasta neu starten", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Pasta beenden", true, None::<&str>)?;
@@ -161,6 +162,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             &delay_10,
             &editor_item,
             &separator,
+            &about,
             &logs,
             &restart,
             &separator2,
@@ -183,6 +185,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "capture-3s" => overlay::start_after(app, 3),
             "capture-10s" => overlay::start_after(app, 10),
             "editor" => editor::show(app),
+            "about" => notice::about(app),
             "logs" => open_log_dir(app),
             "restart" => app.restart(),
             "quit" => app.exit(0),
@@ -214,6 +217,7 @@ pub fn run() {
             editor::save_annotations,
             editor::load_annotations,
             editor::start_capture,
+            notice::open_project_page,
         ])
         .plugin(
             tauri_plugin_log::Builder::new()

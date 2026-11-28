@@ -36,6 +36,38 @@ fn show(app: &AppHandle, title: &str, message: &str, kind: MessageDialogKind) {
         .show(|_| {});
 }
 
+const PROJECT_URL: &str = "https://github.com/cniehaus/pasty";
+
+/// Opens (or focuses) the "About Pasta" window.
+pub fn about(app: &AppHandle) {
+    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+    if let Some(window) = app.get_webview_window("about") {
+        let _ = window.set_focus();
+        return;
+    }
+    let built = WebviewWindowBuilder::new(app, "about", WebviewUrl::App("about.html".into()))
+        .title("Über Pasta")
+        .inner_size(372.0, 540.0)
+        .resizable(false)
+        .minimizable(false)
+        .maximizable(false)
+        .center()
+        .build();
+    match built {
+        Ok(window) => {
+            bring_to_front(app);
+            let _ = window.set_focus();
+        }
+        Err(e) => log::error!("about window: {e}"),
+    }
+}
+
+#[tauri::command]
+pub fn open_project_page() {
+    open_url(PROJECT_URL);
+}
+
 /// Whether Pasta may record the screen. On macOS a newly granted permission
 /// only takes effect after Pasta restarts.
 #[cfg(target_os = "macos")]
