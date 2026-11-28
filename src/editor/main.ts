@@ -35,6 +35,7 @@ import {
   newId,
   nextMarkerLabel,
   spanRect,
+  stampText,
   styleFor,
   translate,
 } from "./model";
@@ -67,6 +68,7 @@ const TOOL_NAMES: Record<Tool, string> = {
   magnifier: "Lupe",
   crop: "Zuschneiden",
   highlight: "Textmarker",
+  stamp: "Stempel",
 };
 
 const TOOL_HINTS: Record<Tool, string> = {
@@ -79,6 +81,7 @@ const TOOL_HINTS: Record<Tool, string> = {
   redact: "Ziehen macht einen Bereich unkenntlich. Schwärzen ist am sichersten.",
   magnifier: "Klicken setzt eine Lupe. An den Ecken ziehen ändert die Größe.",
   highlight: "Ziehen markiert einen Bereich wie mit einem Leuchtstift. Die Schrift darunter bleibt lesbar.",
+  stamp: "Klicken setzt einen Stempel mit dem aktuellen Datum und der Uhrzeit.",
   crop: "Rahmen an den Anfassern anpassen oder verschieben. ↩ übernimmt, Esc bricht ab. Beschriftungen außerhalb bleiben erhalten.",
 };
 
@@ -505,6 +508,11 @@ function onBackgroundClick(p: Point) {
       },
       true,
     );
+  } else if (tool === "stamp") {
+    commit([
+      ...annotations(),
+      { kind: "stamp", id: newId(), x: p.x, y: p.y, color, size, stamp: "datetime", text: stampText("datetime") },
+    ]);
   } else if (tool === "magnifier" && doc && canvas) {
     const id = newId();
     doc.selectedId = id;
@@ -908,6 +916,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   l: "magnifier",
   c: "crop",
   h: "highlight",
+  s: "stamp",
 };
 
 window.addEventListener("keydown", (e) => {

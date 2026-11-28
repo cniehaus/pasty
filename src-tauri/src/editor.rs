@@ -48,7 +48,7 @@ pub fn show(app: &AppHandle) {
 
 fn create(app: &AppHandle) -> Result<(), String> {
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("editor.html".into()))
-        .title("Pasta")
+        .title(format!("Pasta {}", app.package_info().version))
         .inner_size(DEFAULT_SIZE.0, DEFAULT_SIZE.1)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
         .center()

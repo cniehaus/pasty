@@ -119,7 +119,30 @@ export interface Highlight extends Base {
   highlightColor: string;
 }
 
-export type Annotation = Marker | TextNote | Arrow | Magnifier | Frame | Redaction | Spotlight | Crop | Highlight;
+/** What a stamp shows. Only date and time so far; more kinds to follow. */
+export type StampKind = "datetime";
+
+/**
+ * Stamp with fixed text, e.g. the date and time when it was placed; (x, y)
+ * is the top-left corner. The text is stored, so it doesn't change later.
+ */
+export interface Stamp extends Base {
+  kind: "stamp";
+  stamp: StampKind;
+  text: string;
+}
+
+export type Annotation =
+  | Marker
+  | TextNote
+  | Arrow
+  | Magnifier
+  | Frame
+  | Redaction
+  | Spotlight
+  | Crop
+  | Highlight
+  | Stamp;
 /** Annotations described by a rectangle (x, y, width, height). */
 export type BoxAnnotation = Frame | Redaction | Spotlight | Highlight;
 /** Kinds covering an area; other tools draw over them instead of grabbing them. */
@@ -137,6 +160,7 @@ export const STYLE_KEYS: Record<Kind, readonly (keyof Style)[]> = {
   spotlight: ["size", "shape"],
   crop: [],
   highlight: ["highlightColor"],
+  stamp: ["color", "size"],
 };
 
 export const HIGHLIGHT_COLORS = [
@@ -247,6 +271,20 @@ export function stepTextSize(current: number, direction: 1 | -1): number {
   const step = current < 16 ? 1 : current < 40 ? 2 : 4;
   const next = current + direction * step;
   return Math.min(TEXT_SIZE_RANGE.max, Math.max(TEXT_SIZE_RANGE.min, next));
+}
+
+/** Stamp text for `kind` at `date`, e.g. "28.11.2026, 13:07". */
+export function stampText(kind: StampKind, date: Date = new Date()): string {
+  switch (kind) {
+    case "datetime":
+      return date.toLocaleString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+  }
 }
 
 export function strokeWidth(size: Size, pixelRatio: number): number {

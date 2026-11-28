@@ -17,12 +17,14 @@ import {
   type Rect,
   type Redaction,
   type Spotlight,
+  type Stamp,
   type TextNote,
   AREA_KINDS,
   MAGNIFIER_COLOR,
   contrastColor,
   cropOf,
   dimOpacity,
+  fontSize,
   markerRadius,
   pixelBlockSize,
   redactBlurRadius,
@@ -535,6 +537,9 @@ export class AnnotationCanvas {
       case "highlight":
         this.drawHighlight(group, a);
         break;
+      case "stamp":
+        this.drawStamp(group, a);
+        break;
     }
     return group;
   }
@@ -747,6 +752,48 @@ export class AnnotationCanvas {
     );
   }
 
+  /** Rubber-stamp look: bold text in a double outline on a light box. */
+  private drawStamp(group: Konva.Group, s: Stamp): void {
+    group.position({ x: s.x, y: s.y });
+    const size = fontSize(s.size, this.pixelRatio) * 0.9;
+    const outer = Math.max(1, size * 0.12);
+    const inner = Math.max(1, size * 0.05);
+    const text = new Konva.Text({
+      text: s.text,
+      fontSize: size,
+      fontFamily: FONT_FAMILY,
+      fontStyle: "bold",
+      fill: s.color,
+      padding: size * 0.55,
+      listening: false,
+    });
+    const width = text.width();
+    const height = text.height();
+    const gap = outer * 1.6;
+    group.add(
+      new Konva.Rect({
+        width,
+        height,
+        fill: "rgba(255, 255, 255, 0.92)",
+        stroke: s.color,
+        strokeWidth: outer,
+        cornerRadius: size * 0.3,
+        ...softShadow(size * 0.3, 0),
+      }),
+      new Konva.Rect({
+        x: gap,
+        y: gap,
+        width: width - 2 * gap,
+        height: height - 2 * gap,
+        stroke: s.color,
+        strokeWidth: inner,
+        cornerRadius: size * 0.18,
+        listening: false,
+      }),
+      text,
+    );
+  }
+
   private drawSpotlight(group: Konva.Group, s: Spotlight): void {
     group.position({ x: s.x, y: s.y });
     // Invisible shape as grab handle; the dimming shows the area.
@@ -866,6 +913,7 @@ export class AnnotationCanvas {
         if (a.tx !== undefined && a.ty !== undefined) this.addPointerHandle(a, node);
         return;
       case "text":
+      case "stamp":
         this.showTransformer(node, "none");
         return;
       case "magnifier":
