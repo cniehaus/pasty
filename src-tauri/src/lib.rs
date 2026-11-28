@@ -24,6 +24,8 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+pub(crate) const TRAY_ID: &str = "pasta-tray";
+
 /// Primary modifier key: Cmd on macOS, Ctrl elsewhere.
 #[cfg(target_os = "macos")]
 const PRIMARY: Modifiers = Modifiers::SUPER;
@@ -127,6 +129,20 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+Shift+1"),
     )?;
+    let delay_3 = MenuItem::with_id(
+        app,
+        "capture-3s",
+        "Bereich aufnehmen in 3 s",
+        true,
+        None::<&str>,
+    )?;
+    let delay_10 = MenuItem::with_id(
+        app,
+        "capture-10s",
+        "Bereich aufnehmen in 10 s",
+        true,
+        None::<&str>,
+    )?;
     let editor_item = MenuItem::with_id(app, "editor", "Editor öffnen", true, None::<&str>)?;
     let logs = MenuItem::with_id(app, "logs", "Protokoll öffnen", true, None::<&str>)?;
     let restart = MenuItem::with_id(app, "restart", "Pasta neu starten", true, None::<&str>)?;
@@ -138,6 +154,8 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         &[
             &capture,
             &full_screen,
+            &delay_3,
+            &delay_10,
             &editor_item,
             &separator,
             &logs,
@@ -148,7 +166,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     )?;
 
     let (icon, is_template) = tray_icon(app)?;
-    TrayIconBuilder::with_id("pasta-tray")
+    TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .icon_as_template(is_template)
         .tooltip("Pasta")
@@ -157,6 +175,8 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => start_capture(app),
             "full-screen" => overlay::capture_full_screen(app),
+            "capture-3s" => overlay::start_after(app, 3),
+            "capture-10s" => overlay::start_after(app, 10),
             "editor" => editor::show(app),
             "logs" => open_log_dir(app),
             "restart" => app.restart(),

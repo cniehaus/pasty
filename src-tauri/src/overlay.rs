@@ -72,6 +72,14 @@ pub fn capture_full_screen(app: &AppHandle) {
 
 /// Freezes the screen and lets the user select a region.
 pub fn start(app: &AppHandle) {
+    start_after(app, 0);
+}
+
+/// Like [`start`], but freezes the screen only after a countdown, so that
+/// menus or tooltips can be opened first. The countdown is shown next to
+/// the menu bar icon (tooltip on Windows) instead of in a window, which
+/// would take the focus and close an open menu.
+pub fn start_after(app: &AppHandle, seconds: u64) {
     if !begin(app) {
         return;
     }
@@ -80,6 +88,14 @@ pub fn start(app: &AppHandle) {
 
     let app = app.clone();
     std::thread::spawn(move || {
+        for remaining in (1..=seconds).rev() {
+            show_countdown(&app, Some(remaining));
+            std::thread::sleep(Duration::from_secs(1));
+        }
+        if seconds > 0 {
+            show_countdown(&app, None);
+        }
+
         if let Err(e) = freeze_and_open(&app) {
             close(&app);
             notice::error(&app, "Aufnahme fehlgeschlagen", &e);
@@ -88,6 +104,17 @@ pub fn start(app: &AppHandle) {
         std::thread::sleep(READY_TIMEOUT);
         watchdog(&app, generation);
     });
+}
+
+fn show_countdown(app: &AppHandle, remaining: Option<u64>) {
+    let Some(tray) = app.tray_by_id(crate::TRAY_ID) else {
+        return;
+    };
+    let _ = tray.set_title(remaining.map(|s| s.to_string()));
+    let _ = tray.set_tooltip(Some(match remaining {
+        Some(s) => format!("Pasta – Aufnahme in {s} s"),
+        None => "Pasta".to_owned(),
+    }));
 }
 
 /// Resets a capture whose overlay never became visible, so that Pasta
