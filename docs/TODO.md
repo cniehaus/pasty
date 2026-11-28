@@ -16,7 +16,7 @@ Stand: 28.11.2026 (Version 0.1.5)
 - [x] **Timer-Aufnahme** 3 s / 10 s (Countdown in der Menüleiste)
 - [x] **Zuschneiden** im Editor (Seitenverhältnisse, Drittel-Raster, zerstörungsfrei)
 - [ ] **Sprechblasen**
-- [ ] **Fensteraufnahme** (einzelnes Fenster per Klick)
+- [x] **Fensteraufnahme** (Fenster im Auswahlmodus anklicken; ohne verdeckende Fenster)
 - [ ] Strichbreite als **Zahl** statt nur S/M/L
 - [ ] **Scrollende Aufnahme** – bewusst zuletzt (am aufwändigsten)
 

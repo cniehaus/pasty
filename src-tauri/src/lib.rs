@@ -12,6 +12,7 @@ mod export;
 mod notice;
 mod overlay;
 mod store;
+mod window_list;
 
 use std::borrow::Cow;
 
@@ -129,6 +130,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+Shift+1"),
     )?;
+    let window_item = MenuItem::with_id(app, "window", "Fenster aufnehmen", true, None::<&str>)?;
     let delay_3 = MenuItem::with_id(
         app,
         "capture-3s",
@@ -154,6 +156,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         &[
             &capture,
             &full_screen,
+            &window_item,
             &delay_3,
             &delay_10,
             &editor_item,
@@ -175,6 +178,8 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture" => start_capture(app),
             "full-screen" => overlay::capture_full_screen(app),
+            // Same overlay: hovering highlights a window, a click takes it.
+            "window" => start_capture(app),
             "capture-3s" => overlay::start_after(app, 3),
             "capture-10s" => overlay::start_after(app, 10),
             "editor" => editor::show(app),
@@ -198,8 +203,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             overlay::overlay_ready,
+            overlay::frozen_windows,
             overlay::cancel_selection,
             overlay::finish_selection,
+            overlay::finish_window,
             export::copy_png,
             export::save_png,
             editor::list_captures,

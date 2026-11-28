@@ -21,6 +21,20 @@ pub const MAX_CAPTURES: usize = 20;
 /// Full-monitor snapshot shown in the selection overlay.
 pub struct FrozenScreen {
     pub image: RgbaImage,
+    /// Windows visible when the screen was frozen, front to back.
+    pub windows: Vec<WindowRegion>,
+}
+
+/// A window's area in the frozen image, in image pixels.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WindowRegion {
+    /// System window id, for capturing the window on its own.
+    pub id: u32,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub label: String,
 }
 
 #[derive(Default)]
@@ -39,6 +53,16 @@ impl ImageStore {
     pub fn set_frozen(&self, frozen: FrozenScreen, png: Vec<u8>) {
         *self.frozen.lock().expect("store poisoned") = Some(frozen);
         self.insert(FROZEN_PATH.to_owned(), png);
+    }
+
+    /// Windows of the current frozen screen, front to back.
+    pub fn frozen_windows(&self) -> Vec<WindowRegion> {
+        self.frozen
+            .lock()
+            .expect("store poisoned")
+            .as_ref()
+            .map(|f| f.windows.clone())
+            .unwrap_or_default()
     }
 
     /// Removes the frozen screen and returns it, if any.
@@ -158,6 +182,7 @@ mod tests {
         let store = ImageStore::default();
         let frozen = FrozenScreen {
             image: RgbaImage::new(2, 2),
+            windows: Vec::new(),
         };
         store.set_frozen(frozen, vec![0]);
         assert!(store.get(FROZEN_PATH).is_some());

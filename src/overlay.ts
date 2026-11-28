@@ -2,6 +2,8 @@
 //
 // The frozen screenshot is shown as an <img>; the canvas above it draws the
 // dimming, the selection frame, the crosshair and the size label.
+// Dragging selects a region; hovering highlights the window under the
+// cursor and a click (without dragging) takes that window.
 // Coordinates sent to Rust are in image pixels.
 
 import { invoke } from "@tauri-apps/api/core";
@@ -19,11 +21,19 @@ interface Rect {
   height: number;
 }
 
+/** A window of the frozen screen, in image pixels. */
+interface WindowRegion extends Rect {
+  id: number;
+  label: string;
+}
+
 const DIM = "rgb(0 0 0 / 0.45)";
 const FRAME = "#e53935";
 const CROSSHAIR_LIGHT = "rgb(255 255 255 / 0.85)";
 const CROSSHAIR_DARK = "rgb(0 0 0 / 0.55)";
 const MIN_SIZE_PX = 4;
+const WINDOW_HIGHLIGHT = "rgb(30 136 229 / 0.18)";
+const WINDOW_FRAME = "#1e88e5";
 
 const frozen = document.querySelector<HTMLImageElement>("#frozen")!;
 const canvas = document.querySelector<HTMLCanvasElement>("#overlay")!;
@@ -33,6 +43,8 @@ let cursor: Point | null = null;
 let anchor: Point | null = null;
 let frameRequested = false;
 let closing = false;
+/** Windows front to back; the first containing the cursor is hovered. */
+let windows: WindowRegion[] = [];
 
 /** Image pixels per CSS pixel. */
 function imageScale(): Point {
@@ -67,6 +79,27 @@ function toImagePixels(r: Rect): Rect {
   };
 }
 
+/** The window under the cursor (image pixels), unless a drag is running. */
+function hoveredWindow(): WindowRegion | null {
+  if (!cursor || dragging()) return null;
+  const s = imageScale();
+  const px = cursor.x * s.x;
+  const py = cursor.y * s.y;
+  return windows.find((w) => px >= w.x && px < w.x + w.width && py >= w.y && py < w.y + w.height) ?? null;
+}
+
+/** True once the pointer has moved far enough to count as a region drag. */
+function dragging(): boolean {
+  if (!anchor || !cursor) return false;
+  const s = imageScale();
+  return Math.abs(cursor.x - anchor.x) * s.x >= MIN_SIZE_PX || Math.abs(cursor.y - anchor.y) * s.y >= MIN_SIZE_PX;
+}
+
+function toCss(r: Rect): Rect {
+  const s = imageScale();
+  return { x: r.x / s.x, y: r.y / s.y, width: r.width / s.x, height: r.height / s.y };
+}
+
 function resizeCanvas() {
   const dpr = window.devicePixelRatio;
   canvas.width = Math.round(window.innerWidth * dpr);
@@ -87,7 +120,8 @@ function requestDraw() {
 function draw() {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const sel = selection();
+  const sel = dragging() ? selection() : null;
+  const win = hoveredWindow();
   ctx.clearRect(0, 0, w, h);
 
   // Dim everything except the selection.
@@ -97,6 +131,7 @@ function draw() {
   ctx.fillStyle = DIM;
   ctx.fill("evenodd");
 
+  if (win) drawWindowHighlight(win, w, h);
   if (cursor) drawCrosshair(cursor, w, h);
 
   if (sel && sel.width > 0 && sel.height > 0) {
@@ -126,9 +161,24 @@ function drawCrosshair(p: Point, w: number, h: number) {
   }
 }
 
+function drawWindowHighlight(win: WindowRegion, w: number, h: number) {
+  const r = toCss(win);
+  ctx.fillStyle = WINDOW_HIGHLIGHT;
+  ctx.fillRect(r.x, r.y, r.width, r.height);
+  ctx.strokeStyle = WINDOW_FRAME;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(r.x + 1.5, r.y + 1.5, r.width - 3, r.height - 3);
+  drawLabel(`${win.label} · ${win.width} × ${win.height} · Klick nimmt das Fenster`, r, w, h);
+}
+
 function drawSizeLabel(sel: Rect, w: number, h: number) {
   const px = toImagePixels(sel);
-  const text = `${px.width} × ${px.height}`;
+  drawLabel(`${px.width} × ${px.height}`, sel, w, h);
+}
+
+/** Dark label below the bottom-right corner of `box` (inside if no room). */
+function drawLabel(text: string, box: Rect, w: number, h: number) {
+  const sel = box;
   ctx.font = "12px system-ui, -apple-system, 'Segoe UI', sans-serif";
   const padX = 6;
   const boxW = ctx.measureText(text).width + 2 * padX;
@@ -150,10 +200,23 @@ function drawSizeLabel(sel: Rect, w: number, h: number) {
 }
 
 async function finish() {
+  if (!dragging()) {
+    // A click without dragging takes the window under the cursor.
+    const win = hoveredWindow();
+    anchor = null;
+    if (!win) {
+      requestDraw();
+      return;
+    }
+    closing = true;
+    const { id, x, y, width, height } = win;
+    // Captured on its own, without windows in front of it.
+    await invoke("finish_window", { id, region: { x, y, width, height } });
+    return;
+  }
   const sel = selection();
   const region = sel && toImagePixels(sel);
   if (!region || region.width < MIN_SIZE_PX || region.height < MIN_SIZE_PX) {
-    // Treat a click without dragging as "start over".
     anchor = null;
     requestDraw();
     return;
@@ -209,6 +272,11 @@ async function captureWholeScreen() {
 window.addEventListener("resize", resizeCanvas);
 
 frozen.addEventListener("load", async () => {
+  try {
+    windows = await invoke<WindowRegion[]>("frozen_windows");
+  } catch {
+    windows = []; // region selection still works
+  }
   resizeCanvas();
   await invoke("overlay_ready");
 });
